@@ -28,8 +28,10 @@ class FixtureMessagingAdapter:
     is_fixture = True
 
     def __init__(self, script: dict[str, list[dict[str, Any]]] | None = None,
-                 time_scale: float = 1.0, auto_followups: bool | None = None) -> None:
+                 time_scale: float = 1.0, auto_followups: bool | None = None,
+                 reply_delay_s: float | None = None) -> None:
         self.script = script if script is not None else load_script()
+        self.reply_delay_s = reply_delay_s                 # CP0 compat: fixed delay for first replies
         self.time_scale = time_scale                       # 0 in tests = replies fire immediately
         self.auto_followups = (get_settings().fixture_auto_followups
                                if auto_followups is None else auto_followups)
@@ -65,7 +67,10 @@ class FixtureMessagingAdapter:
 
     async def _reply_later(self, task_id: str, provider: ProviderSpec, n: int,
                            entry: dict[str, Any]) -> None:
-        await asyncio.sleep(float(entry.get("after_s", 0)) * self.time_scale)
+        delay = float(entry.get("after_s", 0)) * self.time_scale
+        if self.reply_delay_s is not None and entry.get("trigger", "on_inquiry") == "on_inquiry":
+            delay = self.reply_delay_s
+        await asyncio.sleep(delay)
         on_inbound = self._on_inbound                      # resolved at fire time, not send time
         if on_inbound is None:
             log.warning("fixture reply %s:%s dropped: adapter not started", provider.id, n)

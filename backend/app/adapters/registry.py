@@ -18,6 +18,10 @@ from app.core.schemas import (AvailabilityResult, BookingRequest, BookingResult,
 
 log = logging.getLogger(__name__)
 
+# Explicit overrides (tests, demos): when set, messaging()/browser() return these as-is.
+_messaging: MessagingAdapter | None = None
+_browser: BrowserAdapter | None = None
+
 _fixture_messaging: FixtureMessagingAdapter | None = None
 _fixture_browser: FixtureBrowserAdapter | None = None
 _live_messaging: MessagingAdapter | None = None
@@ -104,11 +108,15 @@ def _live_br() -> BrowserAdapter:
 # ---------------------------------------------------------------- contract §3.5
 def messaging() -> MessagingAdapter:
     """Adapter chosen by MESSAGING_MODE (fixture | photon)."""
+    if _messaging is not None:
+        return _messaging
     return _live_msg() if get_settings().messaging_mode == "photon" else _fixture_msg()
 
 
 def browser() -> BrowserAdapter:
     """Adapter chosen by BROWSER_MODE (fixture | browser_use)."""
+    if _browser is not None:
+        return _browser
     return _live_br() if get_settings().browser_mode == "browser_use" else _fixture_br()
 
 
@@ -126,15 +134,22 @@ def integration_status() -> dict[str, str]:
 def messaging_for(mode: Mode) -> MessagingAdapter:
     """Per-task selection: fixture tasks always use fixtures; live tasks use the env-selected live
     adapter, or a Blocked one — a live task never silently runs on fixtures."""
+    if _messaging is not None:
+        return _messaging
     return _fixture_msg() if mode == "fixture" else _live_msg()
 
 
 def browser_for(mode: Mode) -> BrowserAdapter:
+    if _browser is not None:
+        return _browser
     return _fixture_br() if mode == "fixture" else _live_br()
 
 
 async def start_all(on_inbound: Callable[[InboundEvent], Awaitable[None]]) -> None:
     """Subscribe inbound on every messaging adapter that may be used (fixture + env live)."""
+    if _messaging is not None:
+        await _messaging.start(on_inbound)
+        return
     await _fixture_msg().start(on_inbound)
     if get_settings().messaging_mode == "photon":
         await _live_msg().start(on_inbound)
