@@ -44,6 +44,10 @@ class FakeMessaging:
         pass
 
 
+# Same daily slots as portal/providers.yaml (local time): Ace 15:00, Bayside 14:30 and 16:00.
+PORTAL_SLOTS = {"provider_a": ((15, 0),), "provider_b": ((14, 30), (16, 0))}
+
+
 class FakePortal:
     """submit_mode: ok | ambiguous_booked | timeout_booked | timeout_not_booked | failed |
     mismatch | no_confirmation"""
@@ -67,7 +71,7 @@ class FakePortal:
         z, utc = ZoneInfo(tz), ZoneInfo("UTC")
         slots = [Slot(start=datetime.combine(day_local, time(h, m), z).astimezone(utc),
                       end=datetime.combine(day_local, time(h + 1, m), z).astimezone(utc))
-                 for h, m in ((14, 30), (16, 0))]
+                 for h, m in PORTAL_SLOTS.get(provider.id, ((14, 30), (16, 0)))]
         ev = save_evidence(task_id, "availability", "fixture_browser", is_fixture=True,
                            extracted={"provider_id": provider.id})
         return AvailabilityResult(slots=slots, evidence_ids=[ev.id])
@@ -123,8 +127,11 @@ async def fake_verify(task_id: str) -> VerificationResult:
             "charge_matches": ex["visit_charge_cents"] == p.visit_charge_cents,
             "slot_matches": datetime.fromisoformat(ex["slot_start"]) == p.slot_start,
         }
-        preds = [PredicateResult(name=k, passed=v, detail="", evidence_ids=[confs[-1].id])
-                 for k, v in checks.items()]
+        # "confirmation_present" mirrors the real verifier; summarize() reads the evidence from it.
+        preds = [PredicateResult(name="confirmation_present", passed=True, detail="",
+                                 evidence_ids=[confs[-1].id])]
+        preds += [PredicateResult(name=k, passed=v, detail="", evidence_ids=[confs[-1].id])
+                  for k, v in checks.items()]
         ok = all(checks.values())
         verdict = Verdict.PASS if ok else Verdict.FAIL
         why = "confirmation matches approved terms" if ok else "confirmation differs from approved terms"
@@ -159,3 +166,9 @@ async def to_approval_for_a(task_id: str) -> None:
     await reply(task_id, "provider_a", A1)
     await reply(task_id, "provider_b", B1)
     await ticks(task_id)
+
+
+def fact_source(task_id: str) -> str:
+    """A real evidence id to cite in test facts (ingest_fact requires evidence/inbound ids)."""
+    return save_evidence(task_id, "message_in", "demo", is_fixture=True,
+                         extracted={"text": "test fixture"}).id

@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import re
+from datetime import timedelta
 
 from app.context.facts import ingest_fact
 from app.core import planner, repo
 from app.core.schemas import PlanStep, StepKind as K, StepState, TaskStatus
+from tests.core.fakes import fact_source
 
 BUDGET_OK_TERMS = "Cancel free more than 12 hours ahead."
 
@@ -19,10 +21,17 @@ def _set_state(steps: list[PlanStep], state: StepState) -> None:
 
 
 def _quote(task_id: str, pid: str, cents: int | None, terms: str | None = BUDGET_OK_TERMS) -> None:
+    """A complete quote as the real eligibility rules need it (charge, scope, support, slot)."""
+    src = fact_source(task_id)
     if cents is not None:
-        ingest_fact(task_id, f"{pid}.visit_charge_cents", cents, source_id="inb_x", currency="USD")
+        ingest_fact(task_id, f"{pid}.visit_charge_cents", cents, source_id=src, currency="USD")
+        ingest_fact(task_id, f"{pid}.service_supported", True, source_id=src)
+        ingest_fact(task_id, f"{pid}.fee_scope", "diagnostic_visit_including_travel", source_id=src)
+        start = repo.get_task(task_id).constraints.window_start + timedelta(minutes=30)
+        slot = {"start": start.isoformat(), "end": (start + timedelta(hours=1)).isoformat()}
+        ingest_fact(task_id, f"{pid}.slots_offered", [slot], source_id=src)
     if terms is not None:
-        ingest_fact(task_id, f"{pid}.cancellation_terms", terms, source_id="inb_x")
+        ingest_fact(task_id, f"{pid}.cancellation_terms", terms, source_id=src)
 
 
 def _running(task_id: str) -> None:
@@ -156,7 +165,7 @@ def test_replan_no_reply_provider_steps_skipped(task):
     _quote(task.id, "provider_b", 14500)
     _set_state(_by_kind(steps, K.SEND_INQUIRY, "provider_a"), StepState.SUCCEEDED)
     _set_state(_by_kind(steps, K.AWAIT_REPLY, "provider_a"), StepState.FAILED)
-    ingest_fact(task.id, "provider_a.no_reply", True, source_id="orbit")
+    ingest_fact(task.id, "provider_a.no_reply", True, source_id=fact_source(task.id))
 
     added = planner.replan(task.id, "provider_a did not reply")
 

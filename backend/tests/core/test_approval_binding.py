@@ -6,7 +6,7 @@ import pytest
 from app.context.facts import ingest_fact
 from app.core import approvals, repo
 from app.core.schemas import ApprovalDecisionIn, StepKind as K, StepState, TaskStatus as S
-from tests.core.fakes import A2, events, reply, to_approval_for_a, ticks
+from tests.core.fakes import A2, events, fact_source, reply, to_approval_for_a, ticks
 
 
 def _force_request_step_succeeded(task_id: str) -> None:
@@ -69,7 +69,8 @@ async def test_submit_preflight_refuses_changed_terms(task, env):
     approvals.decide(task.id, ApprovalDecisionIn(proposal_hash=a_appr.proposal_hash,
                                                  decision="approved"))
     # terms change without going through inbound processing (worst case: detection missed it)
-    ingest_fact(task.id, "provider_a.cancellation_terms", "No cancellations.", source_id="x")
+    ingest_fact(task.id, "provider_a.cancellation_terms", "No cancellations.",
+                source_id=fact_source(task.id))
     _force_request_step_succeeded(task.id)
     await ticks(task.id)
     assert env.portal.ops() == []
