@@ -422,11 +422,18 @@ def count_actions(task_id: str) -> int:
 
 
 # ---------------------------------------------------------------- plan steps
-def save_steps(steps: list[PlanStep]) -> list[PlanStep]:
-    """Insert or update by id, in one transaction."""
+def save_steps(steps: list[PlanStep], events: list[tuple[str, str, dict]] | None = None,
+               task_id: str | None = None) -> list[PlanStep]:
+    """Insert or update by id, plus optional (type, message, data) timeline events for `task_id`
+    (default: the steps' task) — all in one transaction, so a plan revision is never half-applied."""
     with _tx() as s:
         for st in steps:
             s.merge(StepRow(**_values(st, StepRow)))
+        s.flush()
+        if events:
+            tid = task_id or steps[0].task_id
+            for type_, message, data in events:
+                _emit(s, tid, type_, message, data)
     return steps
 
 
