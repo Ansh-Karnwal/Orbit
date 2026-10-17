@@ -1,11 +1,39 @@
-"""Owner: Karthik. Stub from CP0 — replace."""
-from __future__ import annotations
+from app.core import repo
+from app.context.domain import load_pack
+from app.context.values import local_window, money
+
+QUESTIONS = {
+    "service_supported": "can you repair this appliance?",
+    "visit_charge_cents": "total diagnostic visit charge including all travel/trip fees?",
+    "base_charge_cents": "base visit charge before extra fees?",
+    "extra_fees": "any mandatory extra fees?",
+    "fee_scope": "what does the visit charge cover?",
+    "slots_offered": "available appointment slots within {window}?",
+    "portal_slots": "which offered slots can be booked within {window}?",
+    "cancellation_terms": "cancellation notice and charges?",
+    "repair_cost_known": "are parts and labor quoted after diagnosis?",
+    "no_reply": "are you available for this repair within {window}?",
+}
 
 
 def compose_inquiry(task_id: str, provider_id: str) -> str:
-    return ("Hi, I need a dishwasher repair visit on Tuesday between 2 and 5 p.m. "
-            "What is the total visit charge, including any trip fee, and your cancellation terms?")
+    task = repo.get_task(task_id)
+    provider = repo.get_provider(task_id, provider_id)
+    text = load_pack().message_templates["inquiry"].format(
+        provider_name=provider.name[:50], service=task.constraints.service.replace("_repair", "").replace("_", " ")[:50],
+        window=local_window(task.constraints), budget=money(task.constraints.max_visit_charge_cents))
+    if len(text) > 480:
+        raise ValueError("Inquiry exceeds 480 characters")
+    return text
 
 
 def compose_followup(task_id: str, provider_id: str, missing_keys: list[str]) -> str:
-    return "Thanks! Could you also confirm: " + ", ".join(missing_keys) + "?"
+    task = repo.get_task(task_id)
+    provider = repo.get_provider(task_id, provider_id)
+    fields = list(dict.fromkeys(k.rsplit(".", 1)[-1] for k in missing_keys))
+    if any(k not in QUESTIONS for k in fields):
+        raise ValueError("Unknown follow-up fact key")
+    if not fields:
+        return ""
+    questions = " ".join(QUESTIONS[k].format(window=local_window(task.constraints)) for k in fields)
+    return load_pack().message_templates["followup"].format(provider_name=provider.name[:50], questions=questions)
