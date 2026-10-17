@@ -144,7 +144,8 @@ Fill in one row per live run (Ansh). Redact handles to `+1•••••1234`.
 
 | When (PT) | Task id | Photon message ids | Browser Use session ref | Screenshots / trace | Notes |
 |---|---|---|---|---|---|
-| | | | | | |
+| 2026-10-17 16:06 | `tsk_live` (adapter smoke test) | n/a | read: `browser-use-oss:bu_bf878b62618d4055`; book: `browser-use-oss:bu_674e833fb020482b` | `ARTIFACT_DIR/_browser_use/<run id>/run.gif` + `conversation/` (local) | `browser-use==0.13.11`, `ChatBrowserUse` (bu-2-0). The agent read Bayside's slots and filled the form (3 steps), and Orbit confirmed on the review page. Portal confirmation `BK-M0NZ`, ref `ORB-live1019`, Mon 2026-10-19 2:30–3:30 PM PT, $145.00. `find_booking` matched it, and the portal held exactly 1 booking. |
+| 2026-10-17 15:57 | `tsk_live` | n/a | `bu_b12394e9a81c4dde`, `bu_dbf7c29dbf8e49fb` | gif only | Free-tier key: the LLM gateway refused the agent. The adapter failed safely and booked nothing. |
 
 ## Open questions for sponsor reps
 1. **Photon:** are the LA Hacks credentials Stable (Spectrum) or Beta? Is the line shared or dedicated? Can a dedicated line send the first message?
