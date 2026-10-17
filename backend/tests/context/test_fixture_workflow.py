@@ -1,9 +1,11 @@
 """Published fixture adapters plus the full context/verifier path; no core worker."""
 import asyncio
 import json
+import sys
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import httpx
 import pytest
 
 from app.adapters.fixture_browser import FixtureBrowserAdapter
@@ -19,13 +21,17 @@ from app.context.proposals import approval_still_valid, best_proposal, build_pro
 from app.context.summary import summarize
 from app.verify.verifier import verify
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "portal"))
+import portal_core  # noqa: E402  (in-process mock provider portal)
 
-async def run_fixture_story(fake):
+
+async def run_fixture_story(fake, portal_db):
     seed = resolve_seed("fixture")
     fake.task = fake.task.model_copy(update={"constraints": seed.constraints, "outcome_text": seed.outcome_text})
     fake.providers = seed.providers
     messaging = FixtureMessagingAdapter(reply_delay_s=0)
-    browser = FixtureBrowserAdapter()
+    portal = httpx.AsyncClient(transport=httpx.ASGITransport(app=portal_core.create_app(portal_db)))
+    browser = FixtureBrowserAdapter(client=portal)
     received = asyncio.Event()
 
     async def on_inbound(event):
@@ -73,12 +79,13 @@ async def run_fixture_story(fake):
     request = BookingRequest(task_id=fake.task.id, proposal=proposal, approval_id=approved.id, orbit_ref=f"orbit:{fake.task.id}:booking:b")
     record_booking_request(request)
     booking = await browser.submit_booking(request)
-    count = len(fake.evidence)
-    duplicate = await browser.submit_booking(request)
-    assert duplicate.confirmation.confirmation_id == booking.confirmation.confirmation_id
-    assert len(fake.evidence) == count
+    assert booking.status == "confirmed"
+    # The portal does not dedup by reference; recovery is find_booking (reconcile), never resubmit.
     recovered = await browser.find_booking(fake.task.id, provider, request.orbit_ref)
     assert recovered.confirmation.confirmation_id == booking.confirmation.confirmation_id
+    state = (await portal.get("http://portal/admin/state")).json()
+    assert [b["reference"] for b in state["bookings"]] == [request.orbit_ref]
+    await portal.aclose()
     writes = list(fake.writes)
     verification = await verify(fake.task.id)
     assert verification.verdict == Verdict.PASS
@@ -90,5 +97,5 @@ async def run_fixture_story(fake):
     return summary
 
 
-def test_canonical_fixture_story_with_published_adapters(memory_repo):
-    asyncio.run(run_fixture_story(memory_repo))
+def test_canonical_fixture_story_with_published_adapters(memory_repo, tmp_path):
+    asyncio.run(run_fixture_story(memory_repo, tmp_path / "portal.db"))
