@@ -1,0 +1,11 @@
+.env
+*.db
+*.db-shm
+*.db-wal
+artifacts/
+node_modules/
+.next/
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/

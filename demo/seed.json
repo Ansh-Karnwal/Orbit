@@ -1,0 +1,23 @@
+{
+  "outcome_text": "Arrange a dishwasher repair visit on Tuesday between 2 and 5 p.m., with a total visit charge of at most $150. Confirm the diagnostic fee and cancellation terms. Ask me before committing to a booking.",
+  "service": "dishwasher_repair",
+  "timezone": "America/Los_Angeles",
+  "window": {"weekday": "tuesday", "start_local": "14:00", "end_local": "17:00"},
+  "max_visit_charge_cents": 15000,
+  "providers": [
+    {
+      "id": "provider_a",
+      "name": "Ace Appliance Repair",
+      "fixture_handle": "fixture:provider_a",
+      "live_handle_env": "LIVE_PROVIDER_A_HANDLE",
+      "portal_path": "/p/provider_a"
+    },
+    {
+      "id": "provider_b",
+      "name": "Bayside Appliance Service",
+      "fixture_handle": "fixture:provider_b",
+      "live_handle_env": "LIVE_PROVIDER_B_HANDLE",
+      "portal_path": "/p/provider_b"
+    }
+  ]
+}

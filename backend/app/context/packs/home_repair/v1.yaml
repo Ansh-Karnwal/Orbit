@@ -1,0 +1,9 @@
+# Owner: Karthik. Stub from CP0 — replace.
+name: home_repair
+version: v1
+rules:
+  - Visit charge must include all mandatory fees (trip/travel).
+  - Parts and labor are unknown until diagnosis unless quoted.
+required_keys:
+  - visit_charge_cents
+  - cancellation_terms
