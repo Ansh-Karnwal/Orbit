@@ -1,0 +1,36 @@
+# Mock provider catalogue for the demo portal. Times are local to `timezone`; money is integer cents.
+timezone: America/Los_Angeles
+booking_horizon_weekdays: 14
+
+providers:
+  provider_a:
+    name: Ace Appliance Repair
+    tagline: Family-run appliance repair since 1998.
+    accent: "#b4532a"
+    services:
+      - id: dishwasher_repair
+        label: Dishwasher repair visit
+        visit_charge_cents: 12000
+    fees:
+      - name: Trip charge
+        cents: 7000
+    cancellation_terms: Free with 24 hours notice
+    notes: []
+    daily_slots:
+      - ["15:00", "16:00"]
+
+  provider_b:
+    name: Bayside Appliance Service
+    tagline: Fast, honest appliance service across the Westside.
+    accent: "#1f6f8b"
+    services:
+      - id: dishwasher_repair
+        label: Diagnostic visit (includes travel)
+        visit_charge_cents: 14500
+    fees: []
+    cancellation_terms: Free more than 12 hours ahead; $25 within 12 hours
+    notes:
+      - Parts and labor quoted after diagnosis
+    daily_slots:
+      - ["14:30", "15:30"]
+      - ["16:00", "17:00"]

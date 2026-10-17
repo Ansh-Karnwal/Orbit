@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ provider.name }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Services &amp; prices</h1>
+  <dl>
+    {% for s in provider.services %}
+      <dt>{{ s.label }}</dt>
+      <dd data-service-id="{{ s.id }}" data-visit-charge-cents="{{ s.visit_charge_cents }}">{{ money(s.visit_charge_cents) }}</dd>
+    {% endfor %}
+  </dl>
+</div>
+<div class="card">
+  <h2>Fees</h2>
+  {% if provider.fees %}
+    <ul>{% for f in provider.fees %}<li data-fee-cents="{{ f.cents }}">{{ f.name }}: {{ money(f.cents) }}</li>{% endfor %}</ul>
+  {% else %}
+    <p class="muted">No additional fees.</p>
+  {% endif %}
+</div>
+<div class="card">
+  <h2>Cancellation policy</h2>
+  <p data-field="cancellation_terms">{{ provider.cancellation_terms }}</p>
+  {% for n in provider.notes %}<p class="notice">{{ n }}</p>{% endfor %}
+</div>
+<p>
+  <a class="btn" href="/p/{{ pid }}/book">Book a visit</a>
+  <a class="btn secondary" href="/p/{{ pid }}/lookup">Find my booking</a>
+</p>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Book a visit — {{ provider.name }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Book a visit</h1>
+  <form method="get" action="/p/{{ pid }}/book">
+    <label for="date">Date</label>
+    <input type="text" id="date" name="date" value="{{ day.isoformat() }}" placeholder="YYYY-MM-DD">
+    <button class="btn secondary" type="submit">Show times</button>
+  </form>
+  <div class="days" style="margin-top:10px">
+    {% for d in days %}<a href="/p/{{ pid }}/book?date={{ d.isoformat() }}" class="{{ 'current' if d == day else '' }}">{{ d.strftime('%a %b') }} {{ d.day }}</a>{% endfor %}
+  </div>
+</div>
+<form class="card" method="post" action="/p/{{ pid }}/review" id="booking-form">
+  <h2>Available times on {{ day_label }}</h2>
+  {% if slots %}
+    {% for s in slots %}
+      <label class="slot"><input type="radio" name="slot" value="{{ s.start }}" data-slot-start="{{ s.start }}" data-slot-end="{{ s.end }}" required> {{ s.label }}</label>
+    {% endfor %}
+  {% else %}
+    <p class="muted" data-no-slots>No times available on this date.</p>
+  {% endif %}
+
+  <label for="service">Service</label>
+  <select id="service" name="service">
+    {% for s in provider.services %}<option value="{{ s.id }}">{{ s.label }} — {{ money(s.visit_charge_cents) }}</option>{% endfor %}
+  </select>
+
+  <label for="customer_name">Your name</label>
+  <input type="text" id="customer_name" name="customer_name" required>
+
+  <label for="customer_contact">Email or phone</label>
+  <input type="text" id="customer_contact" name="customer_contact" required>
+
+  <label for="reference">Your reference (optional)</label>
+  <input type="text" id="reference" name="reference">
+
+  <label for="notes">Notes for the technician</label>
+  <textarea id="notes" name="notes" rows="3"></textarea>
+
+  <p style="margin-top:18px"><button class="btn" type="submit" id="review-booking">Review booking</button></p>
+</form>
+{% endblock %}

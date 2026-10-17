@@ -1,19 +1,7 @@
-"""Owner: Ansh. Stub from CP0 — replace. Mock provider booking portal (FastAPI + Jinja) on :8100."""
-from fastapi import FastAPI
+"""Owner: Ansh. Mock provider booking portal on :8100 — `uvicorn main:app --port 8100`.
 
-app = FastAPI(title="Orbit mock provider portal")
+Logic lives in portal_core.py (a unique module name so backend tests can import it in-process).
+"""
+from portal_core import create_app
 
-
-@app.get("/")
-def index() -> dict:
-    return {"ok": True, "portal": "stub"}
-
-
-@app.post("/admin/reset")
-def admin_reset() -> dict:
-    return {"ok": True}
-
-
-@app.post("/admin/fault")
-def admin_fault(body: dict) -> dict:
-    return {"mode": body.get("mode", "none")}
+app = create_app()

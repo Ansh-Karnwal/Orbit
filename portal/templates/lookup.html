@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Find my booking — {{ provider.name }}{% endblock %}
+{% block content %}
+<form class="card" method="get" action="/p/{{ pid }}/lookup">
+  <h1>Find my booking</h1>
+  <label for="ref">Your reference</label>
+  <input type="text" id="ref" name="ref" value="{{ ref }}">
+  <p style="margin-top:12px"><button class="btn" type="submit">Search</button></p>
+</form>
+{% if ref %}
+  {% if bookings %}
+    {% for b in bookings %}
+      <div class="card" data-booking>{% include "_booking_fields.html" %}</div>
+    {% endfor %}
+  {% else %}
+    <div class="card" data-no-booking><p>No booking found for that reference.</p></div>
+  {% endif %}
+{% endif %}
+{% endblock %}

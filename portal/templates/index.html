@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Appliance repair providers{% endblock %}
+{% block content %}
+<h1>Appliance repair providers</h1>
+{% for pid, p in providers.items() %}
+  <div class="card" data-provider-id="{{ pid }}">
+    <h2><a href="/p/{{ pid }}">{{ p.name }}</a></h2>
+    <p class="muted">{{ p.tagline }}</p>
+    <a class="btn" href="/p/{{ pid }}/book">Book a visit</a>
+  </div>
+{% endfor %}
+{% endblock %}

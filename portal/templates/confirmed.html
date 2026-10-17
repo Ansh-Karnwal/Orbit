@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Booking confirmed — {{ provider.name }}{% endblock %}
+{% block content %}
+<div class="card" data-booking>
+  <h1>Booking confirmed</h1>
+  <p>Thanks, {{ b.customer_name }}. Your visit is booked.</p>
+  {% include "_booking_fields.html" %}
+  {% if b.fees %}<p class="muted">Additional fees may apply: {% for f in b.fees %}{{ f.name }} {{ money(f.cents) }}{% if not loop.last %}, {% endif %}{% endfor %}.</p>{% endif %}
+</div>
+{% endblock %}

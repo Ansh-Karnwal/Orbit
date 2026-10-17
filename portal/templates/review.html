@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Review your booking — {{ provider.name }}{% endblock %}
+{% block content %}
+<form class="card" method="post" action="/p/{{ pid }}/book" id="confirm-form">
+  <h1>Review your booking</h1>
+  <dl>
+    <dt>Provider</dt><dd data-field="provider_id" data-value="{{ pid }}">{{ provider.name }}</dd>
+    <dt>Service</dt><dd data-field="service" data-value="{{ service.id }}">{{ service.label }}</dd>
+    <dt>Time</dt><dd data-field="slot_start" data-value="{{ slot.start }}">{{ slot_label }}</dd>
+    <dt>Visit charge</dt><dd data-field="visit_charge_cents" data-value="{{ service.visit_charge_cents }}">{{ money(service.visit_charge_cents) }}</dd>
+    {% for f in provider.fees %}<dt>{{ f.name }}</dt><dd>{{ money(f.cents) }}</dd>{% endfor %}
+    <dt>Cancellation</dt><dd data-field="cancellation_terms" data-value="{{ provider.cancellation_terms }}">{{ provider.cancellation_terms }}</dd>
+    <dt>Name</dt><dd>{{ data.customer_name }}</dd>
+    <dt>Contact</dt><dd>{{ data.customer_contact }}</dd>
+    <dt>Your reference</dt><dd data-field="reference" data-value="{{ data.reference }}">{{ data.reference or "—" }}</dd>
+  </dl>
+  <input type="hidden" name="slot" value="{{ slot.start }}">
+  <input type="hidden" name="service" value="{{ service.id }}">
+  <input type="hidden" name="customer_name" value="{{ data.customer_name }}">
+  <input type="hidden" name="customer_contact" value="{{ data.customer_contact }}">
+  <input type="hidden" name="reference" value="{{ data.reference }}">
+  <input type="hidden" name="notes" value="{{ data.notes }}">
+  <p style="margin-top:18px">
+    <button class="btn" type="submit" id="confirm-booking">Confirm booking</button>
+    <a class="btn secondary" href="/p/{{ pid }}/book">Back</a>
+  </p>
+</form>
+{% endblock %}
