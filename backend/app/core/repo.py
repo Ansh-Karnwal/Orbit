@@ -301,6 +301,13 @@ def record_inbound(ev: InboundEvent) -> tuple[InboundEvent, bool]:
             return _to(InboundEvent, row), False
 
 
+def get_inbound_by_external(source: str, external_id: str) -> InboundEvent | None:
+    with db.session() as s:
+        row = s.scalars(select(InboundRow).where(InboundRow.source == source,
+                                                 InboundRow.external_id == external_id)).first()
+        return _to(InboundEvent, row) if row else None
+
+
 def list_unprocessed_inbound(task_id: str) -> list[InboundEvent]:
     with db.session() as s:
         rows = s.scalars(select(InboundRow)

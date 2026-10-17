@@ -22,6 +22,10 @@ _rerun: set[str] = set()
 _last_error: dict[str, str] = {}
 
 
+def is_running() -> bool:
+    return _main is not None
+
+
 def wake(task_id: str | None = None) -> None:
     """Thread-safe. Ask the worker to tick now (no-op if the worker isn't running)."""
     if _loop is None or _event is None:
