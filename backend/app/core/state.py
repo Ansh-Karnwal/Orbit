@@ -9,6 +9,10 @@ class IllegalTransition(Exception):
     pass
 
 
+class CompletionGateError(IllegalTransition):
+    """COMPLETED requested without a PASS verification tied to the current approved approval."""
+
+
 ALLOWED: dict[S, set[S]] = {
     S.DRAFT: {S.PLANNING, S.CANCELLED},
     S.PLANNING: {S.RUNNING, S.BLOCKED, S.FAILED, S.CANCELLED},

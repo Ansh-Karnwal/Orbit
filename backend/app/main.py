@@ -7,14 +7,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.adapters import photon_routes, registry
-from app.core import worker
+from app.core import db, worker
 from app.core.api import demo, tasks
 from app.core.config import get_settings
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Phase 1: db.init_db(); Phase 7: recovery; Phase 4: worker + messaging subscription.
+    db.init_db()
+    # Phase 7: recovery; Phase 4: worker + messaging subscription.
     await worker.start()
     yield
     await worker.stop()
