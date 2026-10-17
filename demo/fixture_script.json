@@ -1,10 +1,22 @@
 {
-  "_note": "Placeholder from CP0 (Victor). Ansh owns and replaces this file.",
+  "_note": "Owner: Ansh. Scripted provider replies for FixtureMessagingAdapter (contract §3.9). after_s is seconds after Orbit's first inquiry to that provider. on_inquiry replies fire once per (task, provider); auto_followup replies fire only when FIXTURE_AUTO_FOLLOWUPS=1 (otherwise the presenter injects them via POST /demo/inject-event).",
   "provider_a": [
-    {"delay_s": 2, "text": "Hi! Dishwasher repair visit is $120. I can do Tuesday 3–4pm. Free cancellation with 24 hours notice."},
-    {"trigger": "inject_or_auto", "auto_delay_s": 25, "text": "Sorry, I forgot — there's a $70 trip charge on top, so $190 total."}
+    {
+      "after_s": 2,
+      "trigger": "on_inquiry",
+      "text": "Hi! Dishwasher repair visit is $120. I can do Tuesday 3–4pm. Free cancellation with 24 hours notice."
+    },
+    {
+      "after_s": 25,
+      "trigger": "auto_followup",
+      "text": "Sorry, I forgot — there's a $70 trip charge on top, so $190 total."
+    }
   ],
   "provider_b": [
-    {"delay_s": 2, "text": "Yes we repair dishwashers. Diagnostic visit is $145 including travel. Tuesday 2:30–3:30pm or 4–5pm. Cancel free more than 12 hours ahead, $25 inside 12 hours. Parts and labor are quoted after diagnosis."}
+    {
+      "after_s": 3,
+      "trigger": "on_inquiry",
+      "text": "Yes we repair dishwashers. Diagnostic visit is $145 including travel. Tuesday 2:30–3:30pm or 4–5pm. Cancel free more than 12 hours ahead, $25 inside 12 hours. Parts and labor are quoted after diagnosis."
+    }
   ]
 }

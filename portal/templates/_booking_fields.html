@@ -1,0 +1,10 @@
+<dl>
+  <dt>Confirmation number</dt><dd data-field="confirmation_id" data-value="{{ b.confirmation_id }}">{{ b.confirmation_id }}</dd>
+  <dt>Provider</dt><dd data-field="provider_id" data-value="{{ b.provider_id }}">{{ b.provider_name }}</dd>
+  <dt>Service</dt><dd data-field="service" data-value="{{ b.service }}">{{ b.service_label }}</dd>
+  <dt>Starts</dt><dd data-field="slot_start" data-value="{{ b.slot_start }}">{{ b.slot_start_label }}</dd>
+  <dt>Ends</dt><dd data-field="slot_end" data-value="{{ b.slot_end }}">{{ b.slot_end_label }}</dd>
+  <dt>Visit charge</dt><dd data-field="visit_charge_cents" data-value="{{ b.visit_charge_cents }}">{{ b.visit_charge_label }}</dd>
+  <dt>Cancellation</dt><dd data-field="cancellation_terms" data-value="{{ b.cancellation_terms }}">{{ b.cancellation_terms }}</dd>
+  <dt>Your reference</dt><dd data-field="reference" data-value="{{ b.reference }}">{{ b.reference or "—" }}</dd>
+</dl>

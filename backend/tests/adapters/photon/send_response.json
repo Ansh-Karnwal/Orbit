@@ -1,0 +1,47 @@
+{
+ "id": "pho_msg_out2",
+ "projectId": "pho_prj_demo0001",
+ "platform": "imessage",
+ "space": {
+  "id": "pho_spc_a1",
+  "projectId": "pho_prj_demo0001",
+  "platform": "imessage",
+  "kind": "direct",
+  "participantIds": [
+   "pho_usr_human_a",
+   "pho_usr_agent"
+  ],
+  "details": {},
+  "metadata": {}
+ },
+ "sentBy": {
+  "id": "pho_usr_agent",
+  "projectId": "pho_prj_demo0001",
+  "platform": "imessage",
+  "handle": "+13105550100",
+  "kind": "agent",
+  "details": {},
+  "metadata": {}
+ },
+ "receivedBy": {
+  "id": "pho_usr_human_a",
+  "projectId": "pho_prj_demo0001",
+  "platform": "imessage",
+  "handle": "+14155550101",
+  "kind": "human",
+  "details": {},
+  "metadata": {}
+ },
+ "content": {
+  "type": "text",
+  "format": "plain",
+  "text": "Hi Ace"
+ },
+ "metadata": {},
+ "createdAt": "2026-10-17T20:01:00.000Z",
+ "updatedAt": "2026-10-17T20:01:00.000Z",
+ "status": "dispatched",
+ "timestamps": {
+  "dispatchedAt": "2026-10-17T20:01:00.000Z"
+ }
+}
