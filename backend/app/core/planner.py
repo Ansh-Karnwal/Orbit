@@ -136,7 +136,7 @@ def _followup_candidates(task_id: str, dead: set[str], steps: list[PlanStep]) ->
     """Disqualified providers that only lack required facts (not over budget, not silent),
     and haven't used their follow-up yet."""
     task = repo.get_task(task_id)
-    required = load_pack().required_keys
+    required = list(load_pack().required_facts_for_eligibility)
     out = []
     for pid in sorted(dead):
         used = sum(1 for s in steps if s.provider_id == pid and is_followup(s))

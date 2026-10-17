@@ -22,6 +22,7 @@ from typing import Any, Awaitable, Callable, Literal
 from zoneinfo import ZoneInfo
 
 from app.adapters import registry
+from app.context import booking as ctx_booking
 from app.context import compose as ctx_compose
 from app.context import conflicts as ctx_conflicts
 from app.context import extract as ctx_extract
@@ -30,6 +31,7 @@ from app.context import proposals as ctx_proposals
 from app.context import summary as ctx_summary
 from app.context.domain import load_pack
 from app.core import budgets, planner, repo, telemetry
+from app.core import evidence as core_evidence
 from app.core.schemas import (TERMINAL_STATUSES, AvailabilityResult, BookingRequest, BookingResult,
                               Conflict, IngestResult, PlanStep, StepKind as K, StepState, Task,
                               TaskStatus as S, ToolAction, Verdict, new_id, utcnow)
@@ -238,6 +240,15 @@ def _uncertain_booking(task_id: str) -> ToolAction | None:
 
 
 # ---------------------------------------------------------------- executors
+def _orbit_observation(task: Task, provider_id: str, step: PlanStep, observation: str) -> str:
+    """Facts must cite an evidence or inbound id (contract §3.4), so Orbit's own observations
+    (send failed, reply timed out) are recorded as evidence and the fact points at that."""
+    ev = core_evidence.save_evidence(
+        task.id, "message_out", "orbit", is_fixture=task.mode == "fixture",
+        extracted={"provider_id": provider_id, "step_id": step.id, "observation": observation})
+    return ev.id
+
+
 async def _send_inquiry(task: Task, step: PlanStep) -> Outcome:
     p = repo.get_provider(task.id, step.provider_id)
     key = step.idempotency_key
@@ -251,7 +262,7 @@ async def _send_inquiry(task: Task, step: PlanStep) -> Outcome:
                     "action_id": prior.id})
 
     if followup:
-        missing = [k for k in load_pack().required_keys
+        missing = [k for k in list(load_pack().required_facts_for_eligibility)
                    if repo.get_active_fact(task.id, f"{p.id}.{k}") is None]
         text = ctx_compose.compose_followup(task.id, p.id, missing)
     else:
@@ -269,7 +280,7 @@ async def _send_inquiry(task: Task, step: PlanStep) -> Outcome:
         _finish_action(action, "failed", result={"error": error})
         if step.attempts >= step.max_attempts:
             res = ctx_facts.ingest_fact(task.id, f"{p.id}.no_reply", True,
-                                        source_id=f"orbit:send_failed:{step.id}")
+                                        source_id=_orbit_observation(task, p.id, step, "send_failed"))
             _emit_ingest(task.id, p.id, [res])
             return Outcome("failed", error=error, block=False, exc=exc,
                            replan=f"could not message {p.name}", facts_changed=True)
@@ -297,7 +308,7 @@ async def _await_reply(task: Task, step: PlanStep) -> Outcome:
         return _ok({"inbound_ids": [e.id for e in replies]})
     if utcnow() - since > timedelta(seconds=task.limits.reply_timeout_s):
         res = ctx_facts.ingest_fact(task.id, f"{pid}.no_reply", True,
-                                    source_id=f"orbit:timeout:{step.id}")
+                                    source_id=_orbit_observation(task, pid, step, "reply_timeout"))
         _emit_ingest(task.id, pid, [res])
         name = repo.get_provider(task.id, pid).name
         return Outcome("failed", error=f"no reply within {task.limits.reply_timeout_s}s",
@@ -444,6 +455,13 @@ async def _submit_booking(task: Task, step: PlanStep) -> Outcome:
         return _booking_ambiguous(task, step, prior, "earlier submission outcome unknown")
 
     req = BookingRequest(task_id=task.id, proposal=a.proposal, approval_id=a.id, orbit_ref=ref)
+    try:
+        # Binds approval -> orbit_ref as evidence; the verifier needs it to tie the portal
+        # confirmation to this approval. Refuses stale or changed terms (never book on error).
+        ctx_booking.record_booking_request(req)
+    except ValueError as e:
+        repo.invalidate_approvals(task.id, str(e))
+        return Outcome("skipped", error=str(e), replan=f"booking pre-flight failed: {e}")
     b = registry.browser()
     action = _start_action(task.id, step, b.name, "submit_booking", key,
                            req.model_dump(mode="json"), prior)
