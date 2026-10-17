@@ -60,7 +60,7 @@ def current_plan_version(task_id: str) -> int:
 
 
 # ---------------------------------------------------------------- builders
-def _step(task_id: str, kind: K, pv: int, provider_id: str | None = None,
+def new_step(task_id: str, kind: K, pv: int, provider_id: str | None = None,
           depends_on: list[str] | None = None, key: str | None = None) -> PlanStep:
     now = utcnow()
     return PlanStep(id=new_id("stp"), task_id=task_id, kind=kind, provider_id=provider_id,
@@ -71,17 +71,17 @@ def _step(task_id: str, kind: K, pv: int, provider_id: str | None = None,
 
 def _quote_chain(task_id: str, pv: int, provider_id: str,
                  followup_n: int | None = None) -> list[PlanStep]:
-    send = _step(task_id, K.SEND_INQUIRY, pv, provider_id,
+    send = new_step(task_id, K.SEND_INQUIRY, pv, provider_id,
                  key=step_key(task_id, K.SEND_INQUIRY, provider_id, pv, followup_n=followup_n))
-    wait = _step(task_id, K.AWAIT_REPLY, pv, provider_id, [send.id])
-    extract = _step(task_id, K.EXTRACT_QUOTE, pv, provider_id, [wait.id])
+    wait = new_step(task_id, K.AWAIT_REPLY, pv, provider_id, [send.id])
+    extract = new_step(task_id, K.EXTRACT_QUOTE, pv, provider_id, [wait.id])
     return [send, wait, extract]
 
 
 def _decision_chain(task_id: str, pv: int, compare_deps: list[str]) -> list[PlanStep]:
-    steps = [_step(task_id, K.COMPARE_QUOTES, pv, depends_on=compare_deps)]
+    steps = [new_step(task_id, K.COMPARE_QUOTES, pv, depends_on=compare_deps)]
     for kind in TAIL:
-        steps.append(_step(task_id, kind, pv, depends_on=[steps[-1].id]))
+        steps.append(new_step(task_id, kind, pv, depends_on=[steps[-1].id]))
     return steps
 
 
@@ -104,7 +104,7 @@ def build_initial_plan(task_id: str) -> list[PlanStep]:
 
 
 # ---------------------------------------------------------------- replanning
-def _doomed(steps: list[PlanStep]) -> set[str]:
+def doomed_step_ids(steps: list[PlanStep]) -> set[str]:
     """Ids of steps that can never succeed: failed/skipped, or open behind a doomed dependency."""
     doomed = {s.id for s in steps if s.state in (StepState.FAILED, StepState.SKIPPED)}
     changed = True
@@ -115,6 +115,16 @@ def _doomed(steps: list[PlanStep]) -> set[str]:
                 doomed.add(s.id)
                 changed = True
     return doomed
+
+
+def descendants(steps: list[PlanStep], root_id: str) -> set[str]:
+    """Ids of every step that transitively depends on `root_id`."""
+    out: set[str] = set()
+    frontier = {root_id}
+    while frontier:
+        frontier = {s.id for s in steps if frontier.intersection(s.depends_on)} - out
+        out |= frontier
+    return out
 
 
 def _booking_attempted(task_id: str) -> bool:
@@ -164,7 +174,7 @@ def replan(task_id: str, reason: str) -> list[PlanStep]:
     pv = max((s.plan_version for s in steps), default=0) + 1
     elig = eligibility(task_id)
     providers = [p.id for p in repo.get_providers(task_id)]
-    doomed = _doomed(steps)
+    doomed = doomed_step_ids(steps)
     outstanding = {s.provider_id for s in steps if s.kind in QUOTE_KINDS
                    and s.state in OPEN_STATES and s.id not in doomed}
     dead = {p for p in providers if elig.get(p) and p not in outstanding}

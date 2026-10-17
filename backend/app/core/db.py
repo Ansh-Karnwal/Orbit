@@ -209,6 +209,7 @@ def _make_engine(url: str) -> Engine:
         dbapi_conn.isolation_level = None
         cur = dbapi_conn.cursor()
         cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA synchronous=NORMAL")   # WAL: survives process crashes, far fewer fsyncs
         cur.execute("PRAGMA foreign_keys=ON")
         cur.execute("PRAGMA busy_timeout=30000")
         cur.close()
