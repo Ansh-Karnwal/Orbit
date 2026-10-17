@@ -1,0 +1,98 @@
+{
+ "items": [
+  {
+   "id": "pho_msg_in1",
+   "projectId": "pho_prj_demo0001",
+   "platform": "imessage",
+   "space": {
+    "id": "pho_spc_a1",
+    "projectId": "pho_prj_demo0001",
+    "platform": "imessage",
+    "kind": "direct",
+    "participantIds": [
+     "pho_usr_human_a",
+     "pho_usr_agent"
+    ],
+    "details": {},
+    "metadata": {}
+   },
+   "sentBy": {
+    "id": "pho_usr_human_a",
+    "projectId": "pho_prj_demo0001",
+    "platform": "imessage",
+    "handle": "+14155550101",
+    "kind": "human",
+    "details": {},
+    "metadata": {}
+   },
+   "receivedBy": {
+    "id": "pho_usr_agent",
+    "projectId": "pho_prj_demo0001",
+    "platform": "imessage",
+    "handle": "+13105550100",
+    "kind": "agent",
+    "details": {},
+    "metadata": {}
+   },
+   "content": {
+    "type": "text",
+    "format": "plain",
+    "text": "Hi! Dishwasher repair visit is $120. I can do Tuesday 3–4pm. Free cancellation with 24 hours notice."
+   },
+   "metadata": {},
+   "createdAt": "2026-10-17T20:00:05.000Z",
+   "updatedAt": "2026-10-17T20:00:05.000Z",
+   "status": "received",
+   "timestamps": {
+    "receivedAt": "2026-10-17T20:00:05.000Z"
+   }
+  },
+  {
+   "id": "pho_msg_in2",
+   "projectId": "pho_prj_demo0001",
+   "platform": "imessage",
+   "space": {
+    "id": "pho_spc_a1",
+    "projectId": "pho_prj_demo0001",
+    "platform": "imessage",
+    "kind": "direct",
+    "participantIds": [
+     "pho_usr_human_a",
+     "pho_usr_agent"
+    ],
+    "details": {},
+    "metadata": {}
+   },
+   "sentBy": {
+    "id": "pho_usr_stranger",
+    "projectId": "pho_prj_demo0001",
+    "platform": "imessage",
+    "handle": "+19995550199",
+    "kind": "human",
+    "details": {},
+    "metadata": {}
+   },
+   "receivedBy": {
+    "id": "pho_usr_agent",
+    "projectId": "pho_prj_demo0001",
+    "platform": "imessage",
+    "handle": "+13105550100",
+    "kind": "agent",
+    "details": {},
+    "metadata": {}
+   },
+   "content": {
+    "type": "text",
+    "format": "plain",
+    "text": "unrelated message from a stranger"
+   },
+   "metadata": {},
+   "createdAt": "2026-10-17T20:00:06.000Z",
+   "updatedAt": "2026-10-17T20:00:06.000Z",
+   "status": "received",
+   "timestamps": {
+    "receivedAt": "2026-10-17T20:00:06.000Z"
+   }
+  }
+ ]
+}

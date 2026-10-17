@@ -1,0 +1,52 @@
+{
+ "items": [
+  {
+   "id": "pho_msg_out1",
+   "projectId": "pho_prj_demo0001",
+   "platform": "imessage",
+   "space": {
+    "id": "pho_spc_a1",
+    "projectId": "pho_prj_demo0001",
+    "platform": "imessage",
+    "kind": "direct",
+    "participantIds": [
+     "pho_usr_human_a",
+     "pho_usr_agent"
+    ],
+    "details": {},
+    "metadata": {}
+   },
+   "sentBy": {
+    "id": "pho_usr_agent",
+    "projectId": "pho_prj_demo0001",
+    "platform": "imessage",
+    "handle": "+13105550100",
+    "kind": "agent",
+    "details": {},
+    "metadata": {}
+   },
+   "receivedBy": {
+    "id": "pho_usr_human_a",
+    "projectId": "pho_prj_demo0001",
+    "platform": "imessage",
+    "handle": "+14155550101",
+    "kind": "human",
+    "details": {},
+    "metadata": {}
+   },
+   "content": {
+    "type": "text",
+    "format": "plain",
+    "text": "Hi Ace Appliance Repair, ..."
+   },
+   "metadata": {},
+   "createdAt": "2026-10-17T19:59:00.000Z",
+   "updatedAt": "2026-10-17T19:59:00.000Z",
+   "status": "delivered",
+   "timestamps": {
+    "dispatchedAt": "2026-10-17T19:59:00.000Z",
+    "deliveredAt": "2026-10-17T19:59:02.000Z"
+   }
+  }
+ ]
+}
