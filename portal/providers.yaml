@@ -14,7 +14,7 @@ providers:
     fees:
       - name: Trip charge
         cents: 7000
-    cancellation_terms: Free with 24 hours notice
+    cancellation_terms: Free cancellation with 24 hours notice.
     notes: []
     daily_slots:
       - ["15:00", "16:00"]
@@ -28,7 +28,7 @@ providers:
         label: Diagnostic visit (includes travel)
         visit_charge_cents: 14500
     fees: []
-    cancellation_terms: Free more than 12 hours ahead; $25 within 12 hours
+    cancellation_terms: Cancel free more than 12 hours ahead, $25 inside 12 hours.
     notes:
       - Parts and labor quoted after diagnosis
     daily_slots:

@@ -22,7 +22,7 @@ def test_confirmed_page():
     assert c.slot_start.isoformat() == "2026-10-20T21:30:00+00:00"
     assert c.slot_end.isoformat() == "2026-10-20T22:30:00+00:00"
     assert c.visit_charge_cents == 14500 and c.orbit_ref == "ORB-fix1"
-    assert c.cancellation_terms == "Free more than 12 hours ahead; $25 within 12 hours"
+    assert c.cancellation_terms == "Cancel free more than 12 hours ahead, $25 inside 12 hours."
     assert page_kind(page("confirmed.html")) == "confirmed"
 
 

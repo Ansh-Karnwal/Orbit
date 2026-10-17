@@ -94,7 +94,7 @@ def test_html_review_then_confirm(client):
     assert f == {**f, "provider_id": "provider_b", "service": "dishwasher_repair",
                  "slot_start": B_SLOT, "slot_end": "2026-10-20T22:30:00Z",
                  "visit_charge_cents": "14500", "reference": "ORB-abc",
-                 "cancellation_terms": "Free more than 12 hours ahead; $25 within 12 hours"}
+                 "cancellation_terms": "Cancel free more than 12 hours ahead, $25 inside 12 hours."}
     assert "$145.00" in r.text
 
 
