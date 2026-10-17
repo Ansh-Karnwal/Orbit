@@ -6,7 +6,7 @@ pytest.importorskip("app.core.schemas", reason="Waiting for Victor's CP0")
 from app.context.facts import ingest_fact
 from app.context.summary import summarize
 from app.verify.verifier import verify
-from verify.test_verifier import booking_evidence
+from tests.verify.test_verifier import booking_evidence
 
 
 def test_honest_summary_with_unknown_parts_and_labor(memory_repo):
