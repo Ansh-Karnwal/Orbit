@@ -7,7 +7,7 @@ import asyncio
 import logging
 
 from app.adapters import registry
-from app.core import coordinator, repo
+from app.core import coordinator, repo, telemetry
 
 log = logging.getLogger("orbit.worker")
 
@@ -107,6 +107,7 @@ async def _tick_safe(task_id: str) -> None:
         detail = f"{type(e).__name__}: {e}"[:300]
         if _last_error.get(task_id) != detail:          # don't spam the timeline every second
             _last_error[task_id] = detail
+            telemetry.tick_failed(task_id, e)
             try:
                 repo.emit(task_id, "error", "Internal error while coordinating; will retry",
                           {"error": type(e).__name__, "detail": detail})

@@ -29,7 +29,7 @@ from app.context import facts as ctx_facts
 from app.context import proposals as ctx_proposals
 from app.context import summary as ctx_summary
 from app.context.domain import load_pack
-from app.core import budgets, planner, repo
+from app.core import budgets, planner, repo, telemetry
 from app.core.schemas import (TERMINAL_STATUSES, AvailabilityResult, BookingRequest, BookingResult,
                               Conflict, IngestResult, PlanStep, StepKind as K, StepState, Task,
                               TaskStatus as S, ToolAction, Verdict, new_id, utcnow)
@@ -54,6 +54,7 @@ class Outcome:
     question: str | None = None  # emitted as question.asked when blocking
     replan: str | None = None    # reason; replan runs after the wave
     facts_changed: bool = False
+    exc: BaseException | None = None   # underlying error, for telemetry
 
 
 def _ok(result: dict | None = None, *, facts_changed: bool = False) -> Outcome:
@@ -258,20 +259,21 @@ async def _send_inquiry(task: Task, step: PlanStep) -> Outcome:
     m = registry.messaging()
     action = _start_action(task.id, step, m.name, "send", key,
                            {"provider_id": p.id, "followup": followup, "text": text}, prior)
+    exc: BaseException | None = None
     try:
         r = await m.send(task.id, p, text, key)
         error = r.error if r.status == "failed" else None
     except Exception as e:  # noqa: BLE001 — adapter boundary
-        r, error = None, f"{type(e).__name__}: {e}"
+        r, error, exc = None, f"{type(e).__name__}: {e}", e
     if error is not None:
         _finish_action(action, "failed", result={"error": error})
         if step.attempts >= step.max_attempts:
             res = ctx_facts.ingest_fact(task.id, f"{p.id}.no_reply", True,
                                         source_id=f"orbit:send_failed:{step.id}")
             _emit_ingest(task.id, p.id, [res])
-            return Outcome("failed", error=error, block=False,
+            return Outcome("failed", error=error, block=False, exc=exc,
                            replan=f"could not message {p.name}", facts_changed=True)
-        return Outcome("failed", error=error, retryable=True)
+        return Outcome("failed", error=error, retryable=True, exc=exc)
 
     claim = "message_delivered" if r.status == "delivered" else "message_submitted"
     result = {"status": r.status, "provider_ref": r.provider_ref, "sent_at": _iso(action.started_at),
@@ -350,7 +352,7 @@ async def _read_availability(task: Task, step: PlanStep) -> Outcome:
             r = await b.read_availability(task.id, p, day, tz)
         except Exception as e:  # noqa: BLE001
             _finish_action(action, "failed", result={"error": f"{type(e).__name__}: {e}"})
-            return Outcome("failed", error=f"{type(e).__name__}: {e}", retryable=True)
+            return Outcome("failed", error=f"{type(e).__name__}: {e}", retryable=True, exc=e)
         if r.error:
             _finish_action(action, "failed", result=r.model_dump(mode="json"))
             return Outcome("failed", error=r.error, retryable=True)
@@ -449,7 +451,9 @@ async def _submit_booking(task: Task, step: PlanStep) -> Outcome:
         r = await b.submit_booking(req)
     except Exception as e:  # noqa: BLE001 — may have submitted: never retry blind
         action = _finish_action(action, "ambiguous", result={"error": f"{type(e).__name__}: {e}"})
-        return _booking_ambiguous(task, step, action, f"{type(e).__name__} during submission")
+        out = _booking_ambiguous(task, step, action, f"{type(e).__name__} during submission")
+        out.exc = e
+        return out
     if r.status in ("confirmed", "submitted_unconfirmed"):
         return _booking_done(task, step, action, req, r, resubmitted=False)
     if r.status == "ambiguous":
@@ -482,6 +486,11 @@ def _booking_done(task: Task, step: PlanStep, action: ToolAction, req: BookingRe
                 "booking": r.model_dump(mode="json")})
 
 
+def reconcile_interrupted_booking(task: Task, step: PlanStep, action: ToolAction, why: str) -> None:
+    """Recovery hook: a submit_booking was in flight when the process died."""
+    _booking_ambiguous(task, step, action, why)
+
+
 def _booking_ambiguous(task: Task, step: PlanStep, action: ToolAction, why: str) -> Outcome:
     repo.emit(task.id, "booking.ambiguous",
               f"Booking outcome unclear ({why}); checking the portal before doing anything else",
@@ -489,6 +498,46 @@ def _booking_ambiguous(task: Task, step: PlanStep, action: ToolAction, why: str)
                "orbit_ref": planner.orbit_ref(action.idempotency_key), "detail": why})
     _add_reconcile_chain(task.id, step, action.idempotency_key, f"booking ambiguous: {why}")
     return Outcome("failed", error=f"ambiguous: {why}", block=False)
+
+
+async def _lookup_booking(task_id: str, step: PlanStep, key: str, p, orbit_ref: str) -> BookingResult | None:
+    """find_booking wrapped in a ToolAction (reused once it has succeeded). Raises adapter errors."""
+    prior = repo.get_action_by_key(key)
+    if prior is not None and prior.status == "succeeded":
+        raw = (prior.result or {}).get("found")
+        return BookingResult.model_validate(raw) if raw else None
+    b = registry.browser()
+    action = _start_action(task_id, step, b.name, "find_booking", key,
+                           {"orbit_ref": orbit_ref, "provider_id": p.id}, prior)
+    try:
+        found = await b.find_booking(task_id, p, orbit_ref)
+    except Exception as e:
+        _finish_action(action, "failed", result={"error": f"{type(e).__name__}: {e}"})
+        raise
+    _finish_action(action, "succeeded",
+                   result={"found": found.model_dump(mode="json") if found else None},
+                   evidence_ids=found.evidence_ids if found else [])
+    return found
+
+
+def _is_booked(r: BookingResult | None) -> bool:
+    return r is not None and r.status in ("confirmed", "submitted_unconfirmed")
+
+
+def _adopt_booking(task: Task, step: PlanStep, action: ToolAction, found: BookingResult,
+                   p, orbit_ref: str) -> Outcome:
+    """The portal has the booking: record it on the uncertain action instead of resubmitting."""
+    conf = found.confirmation
+    _finish_action(action, "succeeded", result=found.model_dump(mode="json"),
+                   provider_ref=conf.confirmation_id if conf else None,
+                   evidence_ids=found.evidence_ids)
+    repo.emit(task.id, "booking.reconciled",
+              f"Found the existing booking with {p.name}"
+              + (f" ({conf.confirmation_id})" if conf else "") + "; no resubmission needed",
+              {"provider_id": p.id, "step_id": step.id, "orbit_ref": orbit_ref,
+               "found": True, "confirmation_id": conf.confirmation_id if conf else None,
+               "evidence_ids": found.evidence_ids})
+    return _ok({"orbit_ref": orbit_ref, "booking": found.model_dump(mode="json"), "reconciled": True})
 
 
 async def _reconcile_booking(task: Task, step: PlanStep) -> Outcome:
@@ -501,35 +550,12 @@ async def _reconcile_booking(task: Task, step: PlanStep) -> Outcome:
     b = registry.browser()
 
     # 1. Look before resubmitting (A12).
-    prior = repo.get_action_by_key(step.idempotency_key)
-    if prior is not None and prior.status == "succeeded":
-        raw = (prior.result or {}).get("found")
-        found = BookingResult.model_validate(raw) if raw else None
-    else:
-        action = _start_action(task.id, step, b.name, "find_booking", step.idempotency_key,
-                               {"orbit_ref": req.orbit_ref, "provider_id": p.id}, prior)
-        try:
-            found = await b.find_booking(task.id, p, req.orbit_ref)
-        except Exception as e:  # noqa: BLE001
-            _finish_action(action, "failed", result={"error": f"{type(e).__name__}: {e}"})
-            return Outcome("failed", error=f"{type(e).__name__}: {e}", retryable=True)
-        _finish_action(action, "succeeded",
-                       result={"found": found.model_dump(mode="json") if found else None},
-                       evidence_ids=found.evidence_ids if found else [])
-
-    if found is not None and found.status in ("confirmed", "submitted_unconfirmed"):
-        conf = found.confirmation
-        _finish_action(sub, "succeeded", result=found.model_dump(mode="json"),
-                       provider_ref=conf.confirmation_id if conf else None,
-                       evidence_ids=found.evidence_ids)
-        repo.emit(task.id, "booking.reconciled",
-                  f"Found the existing booking with {p.name}"
-                  + (f" ({conf.confirmation_id})" if conf else "") + "; no resubmission needed",
-                  {"provider_id": p.id, "step_id": step.id, "orbit_ref": req.orbit_ref,
-                   "found": True, "confirmation_id": conf.confirmation_id if conf else None,
-                   "evidence_ids": found.evidence_ids})
-        return _ok({"orbit_ref": req.orbit_ref, "booking": found.model_dump(mode="json"),
-                    "reconciled": True})
+    try:
+        found = await _lookup_booking(task.id, step, step.idempotency_key, p, req.orbit_ref)
+    except Exception as e:  # noqa: BLE001
+        return Outcome("failed", error=f"{type(e).__name__}: {e}", retryable=True, exc=e)
+    if _is_booked(found):
+        return _adopt_booking(task, step, sub, found, p, req.orbit_ref)
 
     # 2. Not found: at most one resubmission with the same orbit_ref.
     re_key = f"{submit_key}:resubmit"
@@ -539,6 +565,15 @@ async def _reconcile_booking(task: Task, step: PlanStep) -> Outcome:
     if re_prior is not None and re_prior.status == "succeeded":
         return _ok({"orbit_ref": req.orbit_ref, "booking": re_prior.result, "resubmitted": True})
     if re_prior is not None:
+        if re_prior.status in ("started", "ambiguous"):
+            # The resubmission itself may have landed (e.g. we crashed mid-call): look once more.
+            try:
+                again = await _lookup_booking(task.id, step, f"{step.idempotency_key}:recheck",
+                                              p, req.orbit_ref)
+            except Exception as e:  # noqa: BLE001
+                return Outcome("failed", error=f"{type(e).__name__}: {e}", retryable=True, exc=e)
+            if _is_booked(again):
+                return _adopt_booking(task, step, re_prior, again, p, req.orbit_ref)
         return Outcome("failed", error="booking state unknown after resubmission", question=unknown_q)
     approval = repo.get_approval(req.approval_id)
     valid, why = ctx_proposals.approval_still_valid(task.id)
@@ -550,16 +585,21 @@ async def _reconcile_booking(task: Task, step: PlanStep) -> Outcome:
               {"provider_id": p.id, "step_id": step.id, "orbit_ref": req.orbit_ref,
                "found": False, "resubmitting": True})
     action = _start_action(task.id, step, b.name, "submit_booking", re_key, sub.request, None)
+    # If the resubmission is itself unclear, the retry never submits again: it re-checks (above).
     try:
         r = await b.submit_booking(req)
     except Exception as e:  # noqa: BLE001
         _finish_action(action, "ambiguous", result={"error": f"{type(e).__name__}: {e}"})
-        return Outcome("failed", error=f"resubmission unclear: {type(e).__name__}", question=unknown_q)
+        return Outcome("failed", error=f"resubmission unclear: {type(e).__name__}", retryable=True,
+                       question=unknown_q, exc=e)
     if r.status in ("confirmed", "submitted_unconfirmed"):
         return _booking_done(task, step, action, req, r, resubmitted=True)
-    _finish_action(action, "ambiguous" if r.status == "ambiguous" else "failed",
-                   result=r.model_dump(mode="json"), evidence_ids=r.evidence_ids)
-    return Outcome("failed", error=f"resubmission {r.status}", question=unknown_q)
+    if r.status == "ambiguous":
+        _finish_action(action, "ambiguous", result=r.model_dump(mode="json"),
+                       evidence_ids=r.evidence_ids)
+        return Outcome("failed", error="resubmission unclear", retryable=True, question=unknown_q)
+    _finish_action(action, "failed", result=r.model_dump(mode="json"), evidence_ids=r.evidence_ids)
+    return Outcome("failed", error=f"resubmission failed: {r.error or r.status}", question=unknown_q)
 
 
 async def _verify(task: Task, step: PlanStep) -> Outcome:
@@ -628,6 +668,8 @@ def _apply(task_id: str, step_id: str, out: Outcome) -> None:
         repo.save_step(cur.model_copy(update={"state": StepState.SUCCEEDED, "result": out.result,
                                               "error": None, "updated_at": now}))
         repo.emit(task_id, "step.succeeded", f"Done: {_label(cur)}", data)
+        if cur.attempts > 1 and cur.error:
+            telemetry.step_recovered(task_id, cur)
         return
     if out.kind == "skipped":
         repo.save_step(cur.model_copy(update={"state": StepState.SKIPPED, "error": out.error,
@@ -636,7 +678,10 @@ def _apply(task_id: str, step_id: str, out: Outcome) -> None:
                   {**data, "reason": out.error})
         return
     # failed
-    if out.retryable and cur.attempts < cur.max_attempts:
+    retrying = out.retryable and cur.attempts < cur.max_attempts
+    if out.exc is not None or out.retryable:          # operational, not a business outcome
+        telemetry.step_failed(task_id, cur, out.error, exc=out.exc, retrying=retrying)
+    if retrying:
         delay = min(2 ** cur.attempts, 30)
         repo.save_step(cur.model_copy(update={"state": StepState.PENDING, "error": out.error,
                                               "not_before": now + timedelta(seconds=delay),
@@ -740,7 +785,8 @@ async def _run_wave(task_id: str) -> tuple[bool, list[str]]:
         if isinstance(out, BaseException):
             log.error("step %s (%s) raised %s", s.id, s.kind.value, type(out).__name__,
                       exc_info=out)
-            out = Outcome("failed", error=f"{type(out).__name__}: {out}"[:300], retryable=True)
+            out = Outcome("failed", error=f"{type(out).__name__}: {out}"[:300], retryable=True,
+                          exc=out)
         if out.kind != "waiting" or out.result:
             progressed = True
         facts_changed |= out.facts_changed

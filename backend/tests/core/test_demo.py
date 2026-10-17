@@ -101,8 +101,8 @@ async def test_reset_with_running_worker_restarts_it(portal, env):
         assert worker.is_running()
         tid = c.post("/demo/reset", json={"create_task": True}).json()["task_id"]
         assert worker.is_running()
-        for _ in range(200):
-            if env.messaging.sent:
+        for _ in range(500):            # the worker runs in another thread: wait for both sends
+            if len(env.messaging.sent) == 2 and repo.get_task(tid).status == "WAITING_EXTERNAL":
                 break
             time.sleep(0.02)
         assert {p for p, _ in env.messaging.sent} == {"provider_a", "provider_b"}

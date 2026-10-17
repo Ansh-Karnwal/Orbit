@@ -52,6 +52,7 @@ class FakePortal:
 
     def __init__(self) -> None:
         self.submit_mode = "ok"
+        self.mode_after_timeout = "ok"                       # mode once timeout_not_booked fired
         self.calls: list[tuple[str, str, str | None]] = []   # (op, provider_id, orbit_ref)
         self.created: list[str] = []                         # one entry per real booking
         self.bookings: dict[str, BookingResult] = {}
@@ -78,7 +79,7 @@ class FakePortal:
         if mode == "failed":
             return BookingResult(status="failed", error="slot no longer available")
         if mode == "timeout_not_booked":
-            self.submit_mode = "ok"
+            self.submit_mode = self.mode_after_timeout
             raise TimeoutError("portal timed out before submit")
         conf = ConfirmationExtract(
             confirmation_id=f"BK-{len(self.created) + 1:04d}", provider_id=p.provider_id,

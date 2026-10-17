@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.adapters import photon_routes, registry
-from app.core import db, worker
+from app.core import db, recovery, telemetry, worker
 from app.core.api import demo, tasks
 from app.core.config import get_settings
 from app.core.logs import setup_logging
@@ -16,12 +16,13 @@ from app.core.repo import NotFound
 from app.core.state import IllegalTransition
 
 setup_logging()
+telemetry.init()                       # no-op without SENTRY_DSN; must precede FastAPI()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
-    # Phase 7: recovery before the worker starts.
+    recovery.recover()                 # before the worker: no tick sees half-finished work
     await worker.start()
     yield
     await worker.stop()
