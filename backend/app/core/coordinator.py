@@ -266,12 +266,15 @@ async def _send_inquiry(task: Task, step: PlanStep) -> Outcome:
         return _ok({"status": "assumed_sent", "sent_at": _iso(prior.started_at),
                     "action_id": prior.id})
 
+    missing = None
     if followup:
         missing = [k for k in list(load_pack().required_facts_for_eligibility)
                    if repo.get_active_fact(task.id, f"{p.id}.{k}") is None]
-        text = ctx_compose.compose_followup(task.id, p.id, missing)
-    else:
-        text = ctx_compose.compose_inquiry(task.id, p.id)
+    from app.llm.client import LLMUnavailable, LLMExtractionError
+    try:
+        text = await ctx_compose.draft_message(task.id, p.id, missing)
+    except (LLMUnavailable, LLMExtractionError) as exc:
+        return Outcome("failed", error=f"Message drafting blocked: {exc}")
     m = registry.messaging()
     action = _start_action(task.id, step, m.name, "send", key,
                            {"provider_id": p.id, "followup": followup, "text": text}, prior)

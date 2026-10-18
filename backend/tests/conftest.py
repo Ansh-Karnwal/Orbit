@@ -7,9 +7,10 @@ import os
 # before any app import — `browser_use` calls load_dotenv() on import, which would otherwise
 # copy .env keys and live modes into os.environ (it never overrides values already set).
 if not os.environ.get("RUN_LIVE"):
-    os.environ.update({"MESSAGING_MODE": "fixture", "BROWSER_MODE": "fixture", "LLM_MODE": "fixture",
+    os.environ.update({"ORBIT_MODE": "fixture", "MESSAGING_MODE": "fixture", "BROWSER_MODE": "fixture",
+                       "LLM_MODE": "fixture", "LLM_PROVIDER": "anthropic", "LLM_MODEL": "",
                        "SENTRY_DSN": ""})
-    for _key in ("BROWSER_USE_API_KEY", "ANTHROPIC_API_KEY", "PHOTON_API_KEY", "PHOTON_PROJECT_ID",
+    for _key in ("BROWSER_USE_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "PHOTON_API_KEY", "PHOTON_PROJECT_ID",
                  "LIVE_PROVIDER_A_HANDLE", "LIVE_PROVIDER_B_HANDLE"):
         os.environ[_key] = ""
 

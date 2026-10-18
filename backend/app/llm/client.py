@@ -1,8 +1,7 @@
-"""One Anthropic boundary. Fixture mode deliberately makes no SDK import or request.
+"""Structured Anthropic/OpenAI boundary. Offline mode never calls a model.
 
-API shape checked against:
-https://platform.claude.com/docs/en/build-with-claude/structured-outputs
-https://github.com/anthropics/anthropic-sdk-python (1.15.0)
+OpenAI uses Responses with Pydantic output parsing and store=False.
+https://developers.openai.com/api/docs/guides/structured-outputs
 """
 import asyncio
 from html import escape
@@ -42,13 +41,20 @@ def status() -> str:
         return "fixture"
     if mode != "live":
         return "blocked: LLM_MODE must be fixture or live"
-    if _setting("LLM_PROVIDER") != "anthropic":
+    provider = _setting("LLM_PROVIDER")
+    if provider not in {"anthropic", "openai"}:
         return "blocked: unsupported LLM_PROVIDER"
-    missing = [name for name in ("LLM_MODEL", "ANTHROPIC_API_KEY") if not _setting(name)]
+    key = "OPENAI_API_KEY" if provider == "openai" else "ANTHROPIC_API_KEY"
+    missing = [name for name in ("LLM_MODEL", key) if not _setting(name)]
     if missing:
         return "blocked: missing " + ", ".join(missing)
-    if find_spec("anthropic") is None:
-        return "blocked: anthropic SDK is not installed"
+    sdk = "openai" if provider == "openai" else "anthropic"
+    try:
+        installed = find_spec(sdk) is not None
+    except ModuleNotFoundError:
+        installed = False
+    if not installed:
+        return f"blocked: {sdk} SDK is not installed"
     return "live"
 
 
@@ -67,6 +73,9 @@ async def structured(schema: type[T], *, system: str, instructions: str,
     state = status()
     if state != "live":
         raise LLMUnavailable(state)
+    if _setting("LLM_PROVIDER") == "openai":
+        return await _openai_structured(schema, system=system, instructions=instructions,
+                                        untrusted=untrusted, task_id=task_id)
     import anthropic
     from app.core import budgets
 
@@ -106,3 +115,48 @@ async def structured(schema: type[T], *, system: str, instructions: str,
                     raise LLMExtractionError("Structured output failed validation twice") from exc
                 content += _validation_feedback(exc)
     raise LLMExtractionError("Structured output failed validation twice")
+
+
+async def _openai_structured(schema: type[T], *, system: str, instructions: str,
+                             untrusted: list[str] | None, task_id: str | None) -> T:
+    import openai
+    from app.core import budgets
+
+    content = instructions + "\n" + delimit(untrusted)
+    async with openai.AsyncOpenAI(api_key=_setting("OPENAI_API_KEY"),
+                                  timeout=20.0, max_retries=0) as client:
+        for validation_attempt in range(2):
+            response = None
+            for attempt in range(3):
+                budgets.record_llm_call(task_id)
+                try:
+                    response = await asyncio.wait_for(client.responses.parse(
+                        model=_setting("LLM_MODEL"),
+                        instructions=HYGIENE + "\n" + system,
+                        input=[{"role": "user", "content": content}],
+                        text_format=schema, max_output_tokens=2048, store=False,
+                    ), timeout=25)
+                    break
+                except ValidationError as exc:
+                    if validation_attempt:
+                        raise LLMExtractionError("OpenAI output failed validation twice") from exc
+                    content += _validation_feedback(exc)
+                    break
+                except openai.APIStatusError as exc:
+                    if exc.status_code not in {429, 500, 502, 503, 504} or attempt == 2:
+                        raise LLMUnavailable(f"OpenAI request rejected (HTTP {exc.status_code})") from exc
+                except (openai.APIConnectionError, TimeoutError) as exc:
+                    if attempt == 2:
+                        raise LLMUnavailable("OpenAI transport retries exhausted") from exc
+                await asyncio.sleep(0.25 * 2 ** attempt)
+            if response is None:
+                continue
+            if response.status != "completed" or response.output_parsed is None:
+                raise LLMExtractionError("OpenAI returned no complete structured output")
+            try:
+                return schema.model_validate(response.output_parsed)
+            except ValidationError as exc:
+                if validation_attempt:
+                    raise LLMExtractionError("OpenAI output failed validation twice") from exc
+                content += _validation_feedback(exc)
+    raise LLMExtractionError("OpenAI output failed validation")

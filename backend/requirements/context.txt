@@ -1,2 +1,4 @@
 PyYAML==6.0.2
 anthropic==1.15.0
+
+openai==2.26.0
