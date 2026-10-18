@@ -4,17 +4,18 @@
 
 ## Current build status
 
-The frontend and offline demonstration are implemented. This checkout's backend is the CP0 skeleton: `/demo/seed` is implemented, while task, approval, stream, and demo-control routes return 501. A working frontend mock is **not** proof of a working backend, sponsor integration, or independent verifier. Real-backend acceptance remains pending the team integration.
+The frontend and backend execute the fixture repair workflow end to end: provider replies, versioned facts, exact approvals, portal booking, and independent verification. Providers and bookings are simulated in fixture mode. Live sponsor execution still requires separate validation. Sentry Tracing and Logs are implemented and verified with captured SDK envelopes; hosted delivery requires a configured DSN.
 
 | Subsystem | Status in this hand-off |
 | --- | --- |
 | Next.js intake, task workspace, approvals, evidence, verification | Implemented; supports typed backend HTTP/SSE and an explicit offline mode |
 | Offline provider messages and portal outcomes | Synthetic fixture snapshots; no external action |
-| Context, coordinator, independent verifier | Shared contract consumed by UI; implementation belongs to teammates |
+| Context, coordinator, independent verifier | Implemented; fixture workflows and completion gates validated |
+| Sentry Tracing + Logs | Correlated workflow spans and structured logs; measured workspace SELECT queries reduced from 14 to 8; [evidence and setup](docs/sentry.md) |
 | Photon / Browser Use live execution | Not validated in this hand-off; runtime chips report the backend's status |
 | CREAO | Workflow checklist and JSON import implemented; no actual platform execution claimed |
 
-`docs/integrations.md` is owned by Ansh and was absent at this hand-off. Reconcile this table with that document and recorded live runs before submission.
+See [integration notes](docs/integrations.md) and record actual live runs before claiming live sponsor execution.
 
 ## Why this exists
 
@@ -46,7 +47,7 @@ flowchart LR
   SSE --> UI
 ```
 
-This diagram describes the team architecture; it is not a claim that the CP0 backend has implemented every box. See [architecture notes](docs/architecture.md).
+This diagram describes the architecture. Fixture execution substitutes simulated providers for the live messaging and browser integrations. See [architecture notes](docs/architecture.md).
 
 ## Run the frontend now
 
@@ -61,7 +62,7 @@ npm run dev
 
 Open http://localhost:3000. The frontend example sets `NEXT_PUBLIC_USE_MOCKS=1` and `NEXT_PUBLIC_API_BASE=http://localhost:8000`. Only the seeded repair scenario is simulated. The UI is labelled throughout and stops at approval cards; it never approves automatically.
 
-For the integrated stack after the backend is ready:
+For the integrated fixture stack:
 
 ```sh
 python3 -m venv .venv
@@ -86,6 +87,8 @@ Ports: frontend 3000, backend 8000, provider portal 8100. Root `.env` settings d
 Each new fixture request gets fresh portal availability, so earlier demo bookings never consume its sample slots. Booking checks and lookup remain scoped to the request, and previous outcomes stay in history. Backend reset clears shared demo DB/artifacts/portal state and requires `ORBIT_ALLOW_RESET=1`. Mock reset creates a fresh tab-local story. Mock fault outcomes are scripted UI demonstrations, not tests of real adapters or verifier predicates.
 
 ## Evidence standard
+
+Sentry adds Tracing and Logs beyond error monitoring. The reproducible observability demo measures redundant workspace queries, diagnoses offered-but-unbookable slots, and follows an ambiguous booking through reconciliation. See the [Sentry runbook](docs/sentry.md) and [captured local evidence](docs/sentry-evidence.json).
 
 | Observation | UI claim |
 | --- | --- |
@@ -113,7 +116,7 @@ npm run test:e2e
 PLAYWRIGHT_CHANNEL=chrome npm run test:e2e
 ```
 
-From the root, `make test` runs the team's backend tests; it does not currently run frontend checks. Do both before proposing a merge. Browser tests cover the full fixture story and mismatch path on desktop and a 390px phone viewport.
+From the root, `make test` runs the backend tests; it does not run frontend checks. Do both before proposing a merge. Browser tests cover desktop, tablet, and phone layouts. Backend Sentry tests inspect transaction and log payloads, correlation, privacy filtering, and the workspace query regression.
 
 ## Team, integrations, and submission
 

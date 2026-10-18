@@ -3,9 +3,11 @@ silent for business outcomes. Uses an in-memory transport: nothing leaves the pr
 from __future__ import annotations
 
 import json
+import asyncio
 from datetime import timedelta
 
 import pytest
+import sentry_sdk
 from fastapi.testclient import TestClient
 from sentry_sdk.transport import Transport
 
@@ -22,11 +24,19 @@ class MemoryTransport(Transport):
     def __init__(self, options=None):
         super().__init__(options)
         self.events: list[dict] = []
+        self.transactions: list[dict] = []
+        self.logs: list[dict] = []
 
     def capture_envelope(self, envelope):
         ev = envelope.get_event()
         if ev is not None:
             self.events.append(ev)
+        transaction = envelope.get_transaction_event()
+        if transaction is not None:
+            self.transactions.append(transaction)
+        for item in envelope.items:
+            if item.type == "log":
+                self.logs.extend(json.loads(item.get_bytes())["items"])
 
 
 @pytest.fixture
@@ -130,3 +140,90 @@ def test_unhandled_api_error_is_scrubbed(sentry, monkeypatch, task):
             frame.pop(k, None)
     blob = _blob(ev)
     assert "13105551234" not in blob and "sk-live" not in blob and "secret=1" not in blob
+
+
+async def test_logs_link_availability_and_step_timings_to_workflow_traces(task, env, sentry):
+    await to_approval_for_a(task.id)
+    sentry_sdk.flush(timeout=2)
+    checks = [item for item in sentry.logs if item["body"] == "availability.checked"]
+    assert checks
+    check = checks[0]
+    values = {key: value["value"] for key, value in check["attributes"].items()}
+    assert values["task_id"] == task.id and values["provider_id"] == "provider_a"
+    assert values["within_window_count"] == values["matching_count"] == 1
+    assert values["portal_count"] == 1 and values["reason_code"] == "bookable"
+    trace = next(transaction for transaction in sentry.transactions
+                 if transaction["contexts"]["trace"]["trace_id"] == check["trace_id"])
+    assert trace["transaction"] == "orbit.workflow.tick"
+    span = next(span for span in trace["spans"] if span["span_id"] == check["span_id"])
+    assert span["op"] == "orbit.step" and span["data"]["step_kind"] == "read_availability"
+    assert any(item["body"] == "workflow.step.finished" for item in sentry.logs)
+    blob = _blob({"logs": sentry.logs, "traces": sentry.transactions})
+    assert A1 not in blob and B1 not in blob
+
+
+async def test_missing_portal_slots_are_logged_without_becoming_an_error(task, env, sentry):
+    original = env.portal.read_availability
+
+    async def no_slots(*args, **kwargs):
+        result = await original(*args, **kwargs)
+        return result.model_copy(update={"slots": []})
+
+    env.portal.read_availability = no_slots
+    await to_approval_for_a(task.id)
+    sentry_sdk.flush(timeout=2)
+    checks = [item for item in sentry.logs if item["body"] == "availability.checked"]
+    assert checks and sentry.events == []
+    attrs = checks[0]["attributes"]
+    assert attrs["within_window_count"]["value"] == 1
+    assert attrs["portal_count"]["value"] == attrs["matching_count"]["value"] == 0
+    assert attrs["reason_code"]["value"] == "no_matching_portal_slot"
+
+
+async def test_parallel_tasks_keep_trace_and_log_context_separate(task, env, sentry):
+    from app.core.api.demo import resolve_seed
+    from app.core import coordinator
+    other = repo.create_task(resolve_seed("fixture"))
+    await asyncio.gather(coordinator.tick(task.id), coordinator.tick(other.id))
+    sentry_sdk.flush(timeout=2)
+    traces = {t["contexts"]["trace"]["trace_id"]: t for t in sentry.transactions}
+    for item in sentry.logs:
+        if item["body"] != "workflow.step.finished":
+            continue
+        task_id = item["attributes"]["task_id"]["value"]
+        assert traces[item["trace_id"]]["tags"]["task_id"] == task_id
+    assert {t["tags"]["task_id"] for t in traces.values()} == {task.id, other.id}
+
+
+def test_workspace_trace_has_no_repeated_task_provider_or_fact_queries(task, sentry):
+    response = TestClient(app).get(f"/tasks/{task.id}?secret=untrusted", headers={"X-Api-Key": "secret-value"})
+    assert response.status_code == 200
+    transaction = sentry.transactions[-1]
+    queries = [span["description"] for span in transaction["spans"]
+               if span["op"] == "db" and span.get("description", "").startswith("SELECT")]
+    for table in ("tasks", "providers", "facts"):
+        assert sum(f"FROM {table} " in query or f"FROM {table}\n" in query for query in queries) == 1
+    assert transaction["tags"]["task_id"] == task.id
+    assert "secret=untrusted" not in _blob(transaction) and "secret-value" not in _blob(transaction)
+    count = len(sentry.transactions)
+    health = TestClient(app).get("/health")
+    assert health.json()["observability"]["logs"] is True
+    assert len(sentry.transactions) == count            # no health-check sampling noise
+
+
+def test_trace_and_log_filters_keep_metrics_and_drop_sensitive_fields():
+    result = telemetry.scrub_transaction({
+        "contexts": {"trace": {"trace_id": "123", "data": {"task_id": "tsk_1", "text": A1}}},
+        "spans": [{"op": "http.client", "description": "GET https://user:password@example.org/slots?key=secret",
+                   "data": {"portal_count": 0, "headers": {"Authorization": "secret"}, "text": B1}}],
+        "user": {"email": "a@example.org"},
+    })
+    assert result["contexts"]["trace"]["data"] == {"task_id": "tsk_1"}
+    assert result["spans"][0]["data"] == {"portal_count": 0}
+    assert result["spans"][0]["description"] == "GET https://example.org/slots"
+    item = telemetry.scrub_log({"body": "call +13105551234", "attributes": {
+        "logger.name": "orbit.observability", "task_id": "tsk_1", "matching_count": 0,
+        "text": A1, "customer_name": "Private person", "sentry.message.parameter.0": B1}})
+    assert item["body"] == "call [phone]"
+    assert set(item["attributes"]) == {"logger.name", "task_id", "matching_count"}
+    assert telemetry.scrub_log({"body": A1, "attributes": {"logger.name": "httpx"}}) is None

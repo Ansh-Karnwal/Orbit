@@ -1,0 +1,227 @@
+{
+  "source": "Captured Sentry SDK envelopes; delivery field distinguishes local and hosted runs",
+  "delivery": "local_capture",
+  "ingest_http_statuses": [],
+  "counts": {
+    "transactions": 30,
+    "logs": 76,
+    "errors": 0
+  },
+  "scenarios": [
+    {
+      "scenario": "repeat_booking",
+      "run": 1,
+      "task_id": "tsk_d310b187e9244c83",
+      "status": "COMPLETED",
+      "slot_start": "2026-10-20T22:00:00+00:00"
+    },
+    {
+      "scenario": "repeat_booking",
+      "run": 2,
+      "task_id": "tsk_d1ceb3837095419b",
+      "status": "COMPLETED",
+      "slot_start": "2026-10-20T22:00:00+00:00"
+    },
+    {
+      "scenario": "offered_but_taken",
+      "task_id": "tsk_8f7c71747bb444c7",
+      "status": "BLOCKED"
+    },
+    {
+      "scenario": "lost_response_reconciled",
+      "task_id": "tsk_3e50f7b6153a4167",
+      "status": "COMPLETED",
+      "bookings": 1
+    }
+  ],
+  "workspace_benchmark": {
+    "baseline_ref": "c9f1ea8",
+    "before_selects": 14,
+    "after_selects": 8,
+    "responses_identical": true,
+    "before_trace_id": "a4725f83635d40aa8e3c1cbd4ec5cb45",
+    "after_trace_id": "935975833d9449e7924a415c1be650d7"
+  },
+  "workspace_traces": [
+    {
+      "trace_id": "a4725f83635d40aa8e3c1cbd4ec5cb45",
+      "transaction": "/tasks/{task_id}",
+      "select_count": 14,
+      "query_tables": [
+        "tasks",
+        "approvals",
+        "providers",
+        "facts",
+        "tasks",
+        "providers",
+        "facts",
+        "steps",
+        "tasks",
+        "providers",
+        "facts",
+        "evidence",
+        "verifications",
+        "timeline"
+      ]
+    },
+    {
+      "trace_id": "935975833d9449e7924a415c1be650d7",
+      "transaction": "/tasks/{task_id}",
+      "select_count": 8,
+      "query_tables": [
+        "tasks",
+        "approvals",
+        "providers",
+        "facts",
+        "steps",
+        "evidence",
+        "verifications",
+        "timeline"
+      ]
+    }
+  ],
+  "log_samples": [
+    {
+      "body": "availability.checked",
+      "trace_id": "43f761f6243643ae84abe865fce9a698",
+      "span_id": "ba055c9bc8f7842e",
+      "attributes": {
+        "event": "availability.checked",
+        "task_id": "tsk_d310b187e9244c83",
+        "provider_id": "provider_a",
+        "step_id": "stp_8406d3775d85475b",
+        "mode": "fixture",
+        "offered_count": 1,
+        "portal_count": 1,
+        "within_window_count": 1,
+        "matching_count": 1,
+        "demo_run_id": "tsk_d310b187e9244c83",
+        "reason_code": "bookable"
+      }
+    },
+    {
+      "body": "booking.verified",
+      "trace_id": "7d4d695be4824aa5af188aeb8ab73251",
+      "span_id": "907e4a712297fa72",
+      "attributes": {
+        "event": "booking.verified",
+        "task_id": "tsk_d310b187e9244c83",
+        "step_id": "stp_f2e37696337c4bc3",
+        "provider_id": "provider_a",
+        "mode": "fixture",
+        "verdict": "PASS"
+      }
+    },
+    {
+      "body": "availability.checked",
+      "trace_id": "51d32699092e4626b49ad4a4de3c5132",
+      "span_id": "ae15d8a357cddfc1",
+      "attributes": {
+        "event": "availability.checked",
+        "task_id": "tsk_d1ceb3837095419b",
+        "provider_id": "provider_a",
+        "step_id": "stp_6b5542a9854b451c",
+        "mode": "fixture",
+        "offered_count": 1,
+        "portal_count": 1,
+        "within_window_count": 1,
+        "matching_count": 1,
+        "demo_run_id": "tsk_d1ceb3837095419b",
+        "reason_code": "bookable"
+      }
+    },
+    {
+      "body": "booking.verified",
+      "trace_id": "5be906d347a9491091f7769b6ec8f45f",
+      "span_id": "b2e4c01c1abd7e4b",
+      "attributes": {
+        "event": "booking.verified",
+        "task_id": "tsk_d1ceb3837095419b",
+        "step_id": "stp_002a6fe870e94e5f",
+        "provider_id": "provider_a",
+        "mode": "fixture",
+        "verdict": "PASS"
+      }
+    },
+    {
+      "body": "availability.checked",
+      "trace_id": "6a61ab7174d84f0f924e69d32db8676b",
+      "span_id": "85e3bce33cbdd5b5",
+      "attributes": {
+        "event": "availability.checked",
+        "task_id": "tsk_8f7c71747bb444c7",
+        "provider_id": "provider_a",
+        "step_id": "stp_424ab99e3ca644f9",
+        "mode": "fixture",
+        "offered_count": 1,
+        "portal_count": 0,
+        "within_window_count": 1,
+        "matching_count": 0,
+        "demo_run_id": "tsk_8f7c71747bb444c7",
+        "reason_code": "no_matching_portal_slot"
+      }
+    },
+    {
+      "body": "availability.checked",
+      "trace_id": "6a61ab7174d84f0f924e69d32db8676b",
+      "span_id": "a0f47c35ea391a27",
+      "attributes": {
+        "event": "availability.checked",
+        "task_id": "tsk_8f7c71747bb444c7",
+        "provider_id": "provider_b",
+        "step_id": "stp_ba96ae958726440e",
+        "mode": "fixture",
+        "offered_count": 2,
+        "portal_count": 0,
+        "within_window_count": 2,
+        "matching_count": 0,
+        "demo_run_id": "tsk_8f7c71747bb444c7",
+        "reason_code": "no_matching_portal_slot"
+      }
+    },
+    {
+      "body": "availability.checked",
+      "trace_id": "0ce80b674985481e9203581d724b4411",
+      "span_id": "add164a6185e7f44",
+      "attributes": {
+        "event": "availability.checked",
+        "task_id": "tsk_3e50f7b6153a4167",
+        "provider_id": "provider_a",
+        "step_id": "stp_00473a39023c4512",
+        "mode": "fixture",
+        "offered_count": 1,
+        "portal_count": 1,
+        "within_window_count": 1,
+        "matching_count": 1,
+        "demo_run_id": "tsk_3e50f7b6153a4167",
+        "reason_code": "bookable"
+      }
+    },
+    {
+      "body": "booking.ambiguous",
+      "trace_id": "d1fdabed0de444dda2121353dc7e7775",
+      "span_id": "a4e258b28466beed",
+      "attributes": {
+        "event": "booking.ambiguous",
+        "task_id": "tsk_3e50f7b6153a4167",
+        "provider_id": "provider_a",
+        "step_id": "stp_a44d1dbc47434e26",
+        "mode": "fixture",
+        "reason_code": "response_uncertain"
+      }
+    },
+    {
+      "body": "booking.verified",
+      "trace_id": "d1fdabed0de444dda2121353dc7e7775",
+      "span_id": "aa1d310341b4bdbd",
+      "attributes": {
+        "event": "booking.verified",
+        "task_id": "tsk_3e50f7b6153a4167",
+        "step_id": "stp_e04bd3ecd82f4648",
+        "provider_id": "provider_a",
+        "mode": "fixture",
+        "verdict": "PASS"
+      }
+    }
+  ]
+}

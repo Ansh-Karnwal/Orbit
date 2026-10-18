@@ -57,4 +57,4 @@ if photon_routes.router is not None:
 @app.get("/health")
 def health() -> dict:
     return {"ok": True, "mode": get_settings().orbit_mode,
-            "integrations": registry.integration_status()}
+            "integrations": registry.integration_status(), "observability": telemetry.status()}
