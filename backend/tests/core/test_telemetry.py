@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import asyncio
 from datetime import timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 import sentry_sdk
@@ -14,7 +15,7 @@ from sentry_sdk.transport import Transport
 from app.core import approvals, repo, telemetry
 from app.core.api import views
 from app.core.schemas import ApprovalDecisionIn, StepKind as K, TaskStatus as S
-from app.main import app
+from app.main import app, lifespan
 from tests.core.fakes import A1, B1, to_approval_for_a, ticks
 
 FAKE_DSN = "https://public@sentry.invalid/1"
@@ -54,6 +55,16 @@ def _blob(ev: dict) -> str:
 def test_disabled_without_dsn():
     assert telemetry.init("") is False
     telemetry.step_failed("tsk_x", None, "e", exc=None, retrying=False)   # no-op, no error
+
+
+async def test_shutdown_delivers_the_final_log_batch(sentry, monkeypatch):
+    monkeypatch.setattr("app.main.db.init_db", lambda: None)
+    monkeypatch.setattr("app.main.recovery.recover", lambda: None)
+    monkeypatch.setattr("app.main.worker.start", AsyncMock())
+    monkeypatch.setattr("app.main.worker.stop", AsyncMock())
+    async with lifespan(app):
+        telemetry.record("shutdown.probe", "tsk_shutdown")
+    assert any(item["body"] == "shutdown.probe" for item in sentry.logs)
 
 
 def test_scrub_strips_pii():

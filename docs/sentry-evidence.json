@@ -1,7 +1,40 @@
 {
   "source": "Captured Sentry SDK envelopes; delivery field distinguishes local and hosted runs",
-  "delivery": "local_capture",
-  "ingest_http_statuses": [],
+  "delivery": "sentry_ingest_accepted",
+  "ingest_http_statuses": [
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200
+  ],
   "counts": {
     "transactions": 30,
     "logs": 76,
@@ -11,25 +44,25 @@
     {
       "scenario": "repeat_booking",
       "run": 1,
-      "task_id": "tsk_d310b187e9244c83",
+      "task_id": "tsk_2179ff9cce714af5",
       "status": "COMPLETED",
       "slot_start": "2026-10-20T22:00:00+00:00"
     },
     {
       "scenario": "repeat_booking",
       "run": 2,
-      "task_id": "tsk_d1ceb3837095419b",
+      "task_id": "tsk_f8a87de17fa04906",
       "status": "COMPLETED",
       "slot_start": "2026-10-20T22:00:00+00:00"
     },
     {
       "scenario": "offered_but_taken",
-      "task_id": "tsk_8f7c71747bb444c7",
+      "task_id": "tsk_9754b07b62614f29",
       "status": "BLOCKED"
     },
     {
       "scenario": "lost_response_reconciled",
-      "task_id": "tsk_3e50f7b6153a4167",
+      "task_id": "tsk_a96b1b035ec54c01",
       "status": "COMPLETED",
       "bookings": 1
     }
@@ -39,12 +72,12 @@
     "before_selects": 14,
     "after_selects": 8,
     "responses_identical": true,
-    "before_trace_id": "a4725f83635d40aa8e3c1cbd4ec5cb45",
-    "after_trace_id": "935975833d9449e7924a415c1be650d7"
+    "before_trace_id": "4569bd4dd7fa45b9bc565ffcd8484e98",
+    "after_trace_id": "58bc03bda3024e19beac530ad7f606f0"
   },
   "workspace_traces": [
     {
-      "trace_id": "a4725f83635d40aa8e3c1cbd4ec5cb45",
+      "trace_id": "4569bd4dd7fa45b9bc565ffcd8484e98",
       "transaction": "/tasks/{task_id}",
       "select_count": 14,
       "query_tables": [
@@ -65,7 +98,7 @@
       ]
     },
     {
-      "trace_id": "935975833d9449e7924a415c1be650d7",
+      "trace_id": "58bc03bda3024e19beac530ad7f606f0",
       "transaction": "/tasks/{task_id}",
       "select_count": 8,
       "query_tables": [
@@ -83,30 +116,30 @@
   "log_samples": [
     {
       "body": "availability.checked",
-      "trace_id": "43f761f6243643ae84abe865fce9a698",
-      "span_id": "ba055c9bc8f7842e",
+      "trace_id": "609b2c452dbf4abca6436f8e0553ff0b",
+      "span_id": "a3e2b3cb433f5f8b",
       "attributes": {
         "event": "availability.checked",
-        "task_id": "tsk_d310b187e9244c83",
+        "task_id": "tsk_2179ff9cce714af5",
         "provider_id": "provider_a",
-        "step_id": "stp_8406d3775d85475b",
+        "step_id": "stp_c2e70f656d964359",
         "mode": "fixture",
         "offered_count": 1,
         "portal_count": 1,
         "within_window_count": 1,
         "matching_count": 1,
-        "demo_run_id": "tsk_d310b187e9244c83",
+        "demo_run_id": "tsk_2179ff9cce714af5",
         "reason_code": "bookable"
       }
     },
     {
       "body": "booking.verified",
-      "trace_id": "7d4d695be4824aa5af188aeb8ab73251",
-      "span_id": "907e4a712297fa72",
+      "trace_id": "934eb43b39904db8aec99e4a42740a0b",
+      "span_id": "a0fede2b368d71b1",
       "attributes": {
         "event": "booking.verified",
-        "task_id": "tsk_d310b187e9244c83",
-        "step_id": "stp_f2e37696337c4bc3",
+        "task_id": "tsk_2179ff9cce714af5",
+        "step_id": "stp_e3541a8184a34c4f",
         "provider_id": "provider_a",
         "mode": "fixture",
         "verdict": "PASS"
@@ -114,30 +147,30 @@
     },
     {
       "body": "availability.checked",
-      "trace_id": "51d32699092e4626b49ad4a4de3c5132",
-      "span_id": "ae15d8a357cddfc1",
+      "trace_id": "cf91a6ea52e54083b3980a762b1e0e77",
+      "span_id": "bb047c96c825caa4",
       "attributes": {
         "event": "availability.checked",
-        "task_id": "tsk_d1ceb3837095419b",
+        "task_id": "tsk_f8a87de17fa04906",
         "provider_id": "provider_a",
-        "step_id": "stp_6b5542a9854b451c",
+        "step_id": "stp_343c08d01bcf4e2d",
         "mode": "fixture",
         "offered_count": 1,
         "portal_count": 1,
         "within_window_count": 1,
         "matching_count": 1,
-        "demo_run_id": "tsk_d1ceb3837095419b",
+        "demo_run_id": "tsk_f8a87de17fa04906",
         "reason_code": "bookable"
       }
     },
     {
       "body": "booking.verified",
-      "trace_id": "5be906d347a9491091f7769b6ec8f45f",
-      "span_id": "b2e4c01c1abd7e4b",
+      "trace_id": "da77c592397942f9b4e12418a4435ba0",
+      "span_id": "95c77aa41aba79d3",
       "attributes": {
         "event": "booking.verified",
-        "task_id": "tsk_d1ceb3837095419b",
-        "step_id": "stp_002a6fe870e94e5f",
+        "task_id": "tsk_f8a87de17fa04906",
+        "step_id": "stp_18f4b856fa8941d3",
         "provider_id": "provider_a",
         "mode": "fixture",
         "verdict": "PASS"
@@ -145,83 +178,117 @@
     },
     {
       "body": "availability.checked",
-      "trace_id": "6a61ab7174d84f0f924e69d32db8676b",
-      "span_id": "85e3bce33cbdd5b5",
+      "trace_id": "6d45c129185f48d78d85b21840209b87",
+      "span_id": "820cf3bab92b7d76",
       "attributes": {
         "event": "availability.checked",
-        "task_id": "tsk_8f7c71747bb444c7",
+        "task_id": "tsk_9754b07b62614f29",
         "provider_id": "provider_a",
-        "step_id": "stp_424ab99e3ca644f9",
+        "step_id": "stp_85e49bae8465436f",
         "mode": "fixture",
         "offered_count": 1,
         "portal_count": 0,
         "within_window_count": 1,
         "matching_count": 0,
-        "demo_run_id": "tsk_8f7c71747bb444c7",
+        "demo_run_id": "tsk_9754b07b62614f29",
         "reason_code": "no_matching_portal_slot"
       }
     },
     {
       "body": "availability.checked",
-      "trace_id": "6a61ab7174d84f0f924e69d32db8676b",
-      "span_id": "a0f47c35ea391a27",
+      "trace_id": "6d45c129185f48d78d85b21840209b87",
+      "span_id": "94c38d5ee207567f",
       "attributes": {
         "event": "availability.checked",
-        "task_id": "tsk_8f7c71747bb444c7",
+        "task_id": "tsk_9754b07b62614f29",
         "provider_id": "provider_b",
-        "step_id": "stp_ba96ae958726440e",
+        "step_id": "stp_6655230de96d4286",
         "mode": "fixture",
         "offered_count": 2,
         "portal_count": 0,
         "within_window_count": 2,
         "matching_count": 0,
-        "demo_run_id": "tsk_8f7c71747bb444c7",
+        "demo_run_id": "tsk_9754b07b62614f29",
         "reason_code": "no_matching_portal_slot"
       }
     },
     {
       "body": "availability.checked",
-      "trace_id": "0ce80b674985481e9203581d724b4411",
-      "span_id": "add164a6185e7f44",
+      "trace_id": "e565a3c4d03f4093afb3bf5188e7eb46",
+      "span_id": "a97735976263f5b4",
       "attributes": {
         "event": "availability.checked",
-        "task_id": "tsk_3e50f7b6153a4167",
+        "task_id": "tsk_a96b1b035ec54c01",
         "provider_id": "provider_a",
-        "step_id": "stp_00473a39023c4512",
+        "step_id": "stp_d13491dff59d45f5",
         "mode": "fixture",
         "offered_count": 1,
         "portal_count": 1,
         "within_window_count": 1,
         "matching_count": 1,
-        "demo_run_id": "tsk_3e50f7b6153a4167",
+        "demo_run_id": "tsk_a96b1b035ec54c01",
         "reason_code": "bookable"
       }
     },
     {
       "body": "booking.ambiguous",
-      "trace_id": "d1fdabed0de444dda2121353dc7e7775",
-      "span_id": "a4e258b28466beed",
+      "trace_id": "4d50ff4a8744486f936dcb2bb0b4a6b3",
+      "span_id": "8494fb5166a38779",
       "attributes": {
         "event": "booking.ambiguous",
-        "task_id": "tsk_3e50f7b6153a4167",
+        "task_id": "tsk_a96b1b035ec54c01",
         "provider_id": "provider_a",
-        "step_id": "stp_a44d1dbc47434e26",
+        "step_id": "stp_4fb5983733d04de4",
         "mode": "fixture",
         "reason_code": "response_uncertain"
       }
     },
     {
       "body": "booking.verified",
-      "trace_id": "d1fdabed0de444dda2121353dc7e7775",
-      "span_id": "aa1d310341b4bdbd",
+      "trace_id": "4d50ff4a8744486f936dcb2bb0b4a6b3",
+      "span_id": "8a4fa89e992fb405",
       "attributes": {
         "event": "booking.verified",
-        "task_id": "tsk_3e50f7b6153a4167",
-        "step_id": "stp_e04bd3ecd82f4648",
+        "task_id": "tsk_a96b1b035ec54c01",
+        "step_id": "stp_4925389143ff437f",
         "provider_id": "provider_a",
         "mode": "fixture",
         "verdict": "PASS"
       }
     }
-  ]
+  ],
+  "hosted_verification": {
+    "method": "Sentry MCP searches and issue inspection after ingestion",
+    "verified_at": "2026-10-18T02:44:06.236253+00:00",
+    "organization": "university-of-southern-cali-rg",
+    "project": "orbit",
+    "project_id": "4512274876465152",
+    "environment": "development",
+    "release": "orbit@4867220",
+    "indexed_before_selects": 14,
+    "indexed_after_selects": 8,
+    "indexed_offered_but_taken_logs": 2,
+    "lost_response_trace_id": "4d50ff4a8744486f936dcb2bb0b4a6b3",
+    "error_issue_id": "ORBIT-1",
+    "error_issue_status_after_cleanup": "resolved",
+    "error_issue_url": "https://university-of-southern-cali-rg.sentry.io/issues/ORBIT-1",
+    "error_event_id": "7f7c2debf2cc41efa6fc9bd8a5fcd3e2",
+    "error_description": "RuntimeError: Orbit Sentry setup verification 20261018T023941Z",
+    "stack_trace_readable": true,
+    "normal_app_runtime": {
+      "startup_module": "app.main",
+      "task_id": "tsk_80e716f814eb484d",
+      "status": "COMPLETED",
+      "verification": "PASS",
+      "booking_verified_log_indexed_after_shutdown": true,
+      "trace_id": "c99f54dadd4748dfb1530453ac11eb92",
+      "temporary_error_trigger_removed": true
+    },
+    "backend_health_after_restart": {
+      "configured": true,
+      "logs": true,
+      "tracing": true
+    },
+    "scope": "Synthetic fixture workflows in development; no production deployment"
+  }
 }

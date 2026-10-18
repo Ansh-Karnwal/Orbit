@@ -4,7 +4,7 @@
 
 ## Current build status
 
-The frontend and backend execute the fixture repair workflow end to end: provider replies, versioned facts, exact approvals, portal booking, and independent verification. Providers and bookings are simulated in fixture mode. Live sponsor execution still requires separate validation. Sentry Tracing and Logs are implemented and verified with captured SDK envelopes; hosted delivery requires a configured DSN.
+The frontend and backend execute the fixture repair workflow end to end: provider replies, versioned facts, exact approvals, portal booking, and independent verification. Providers and bookings are simulated in fixture mode. Live sponsor execution still requires separate validation. Sentry Tracing, Logs, and error capture are verified in the hosted `orbit` project using synthetic fixture workflows; [evidence and dashboard links](docs/sentry.md) are available.
 
 | Subsystem | Status in this hand-off |
 | --- | --- |
@@ -88,7 +88,7 @@ Each new fixture request gets fresh portal availability, so earlier demo booking
 
 ## Evidence standard
 
-Sentry adds Tracing and Logs beyond error monitoring. The reproducible observability demo measures redundant workspace queries, diagnoses offered-but-unbookable slots, and follows an ambiguous booking through reconciliation. See the [Sentry runbook](docs/sentry.md) and [captured local evidence](docs/sentry-evidence.json).
+Sentry adds Tracing and Logs beyond error monitoring. The reproducible observability demo measures redundant workspace queries, diagnoses offered-but-unbookable slots, and follows an ambiguous booking through reconciliation. See the [Sentry runbook](docs/sentry.md) and [hosted verification evidence](docs/sentry-evidence.json).
 
 | Observation | UI claim |
 | --- | --- |

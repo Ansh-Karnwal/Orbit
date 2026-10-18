@@ -12,7 +12,7 @@ We also reproduced an offered-but-taken appointment. The correlated log has `wit
 
 ## Connect a project
 
-Create a Python/FastAPI project in Sentry. In **Settings → Projects → your project → Client Keys (DSN)**, copy the DSN into the root `.env`:
+The hosted Python/FastAPI project is `university-of-southern-cali-rg/orbit`, verified on October 17, 2026 (Pacific). The local ignored root `.env` contains its DSN, the `development` environment, and release `orbit@4867220`. The running backend on port 8000 has been restarted with this configuration. For another checkout, copy this project's DSN from **Settings → Projects → orbit → Client Keys (DSN)** into the root `.env`:
 
 ```dotenv
 SENTRY_DSN=https://your-public-key@your-ingest-host/project-id
@@ -28,7 +28,21 @@ Install the updated core requirements and restart the backend. `/health` reports
 uv pip install --python .venv/bin/python -r backend/requirements/core.txt
 ```
 
-Tracing samples all work by default for this demo; `SENTRY_TRACES_SAMPLE_RATE` accepts 0–1. Health checks and open event streams are excluded. Each worker tick is a short `orbit.workflow.tick` transaction, with `orbit.step` spans for individual operations. Waiting for human approval does not hold a trace open. `task_id` links requests, separate ticks, logs, and errors; concurrent tasks have isolated scopes.
+Tracing samples all work by default for this demo; `SENTRY_TRACES_SAMPLE_RATE` accepts 0–1. Health checks and open event streams are excluded. Each worker tick is a short `orbit.workflow.tick` transaction, with `orbit.step` spans for individual operations. Waiting for human approval does not hold a trace open. `task_id` links requests, separate ticks, logs, and errors; concurrent tasks have isolated scopes. Application shutdown stops the worker and flushes the SDK's remaining log and event batches before uvicorn exits.
+
+## Hosted verification
+
+The synthetic demo sent **30 transactions and 76 logs**; all 32 ingestion requests returned HTTP 200. Sentry MCP queries then confirmed dashboard indexing, including **14 SELECT spans before and 8 after** the workspace optimization. The [committed evidence](sentry-evidence.json) records the accepted run and the separate dashboard verification.
+
+- [Before: workspace trace with 14 SELECTs](https://university-of-southern-cali-rg.sentry.io/explore/traces/trace/4569bd4dd7fa45b9bc565ffcd8484e98)
+- [After: workspace trace with 8 SELECTs](https://university-of-southern-cali-rg.sentry.io/explore/traces/trace/58bc03bda3024e19beac530ad7f606f0)
+- [Offered-but-taken availability logs](https://university-of-southern-cali-rg.sentry.io/explore/logs/?project=4512274876465152&logsQuery=event%3Aavailability.checked%20task_id%3Atsk_9754b07b62614f29&statsPeriod=14d)
+- [Lost-response reconciliation trace](https://university-of-southern-cali-rg.sentry.io/explore/traces/trace/4d50ff4a8744486f936dcb2bb0b4a6b3)
+- [Error capture and readable source context: ORBIT-1](https://university-of-southern-cali-rg.sentry.io/issues/ORBIT-1)
+
+A separate disposable uvicorn server loaded the real `app.main` initialization and lifespan, drove a fixture booking over HTTP to COMPLETED / PASS, and emitted a deliberate `RuntimeError: Orbit Sentry setup verification`. The captured stack includes its function, file, line, and source context. Its temporary error route and databases were removed; no diagnostic route was added to the demo backend. After fixing shutdown flushing, the final `booking.verified` log for `tsk_80e716f814eb484d` was confirmed in Sentry after the disposable server exited. These checks verify development telemetry; the workflow uses simulated providers and has not been deployed to production.
+
+The synthetic test issue ORBIT-1 was resolved after verification. Its captured events remain available through the issue link above.
 
 ## Reproduce the submission evidence
 
@@ -49,7 +63,7 @@ The script uses temporary databases and real fixture messaging/browser adapters,
 3. A lost response after booking, followed by lookup and verification with exactly one stored booking.
 4. Identical workspace responses before/after the query reduction.
 
-Outputs are `artifacts/sentry/report.json` (SDK transactions/logs) and `artifacts/sentry/report.summary.json` (selected evidence). Local capture is labeled `local_capture`. `--send` records ingestion HTTP statuses and only labels the run `sentry_ingest_accepted` after successful HTTP responses. Dashboard indexing still needs to be checked in Sentry. The committed evidence is a local capture until a hosted run is supplied.
+Outputs are `artifacts/sentry/report.json` (SDK transactions/logs) and `artifacts/sentry/report.summary.json` (selected evidence). Local capture is labeled `local_capture`. `--send` records ingestion HTTP statuses and only labels the run `sentry_ingest_accepted` after successful HTTP responses. That label proves ingestion acceptance; dashboard indexing must be checked separately for each new run. The committed evidence includes the hosted run and its independent Sentry MCP verification. The separate normal-server check is saved locally in `artifacts/sentry/runtime-verification.json`.
 
 ## Show the judges
 

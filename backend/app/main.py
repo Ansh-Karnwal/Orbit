@@ -24,8 +24,13 @@ async def lifespan(app: FastAPI):
     db.init_db()
     recovery.recover()                 # before the worker: no tick sees half-finished work
     await worker.start()
-    yield
-    await worker.stop()
+    try:
+        yield
+    finally:
+        try:
+            await worker.stop()
+        finally:
+            telemetry.shutdown()      # flush the final log batch before uvicorn exits
 
 
 app = FastAPI(title="Orbit", lifespan=lifespan)
