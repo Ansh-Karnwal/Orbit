@@ -13,7 +13,12 @@ SCOPES = {"diagnostic_visit_including_travel": "diagnostic visit incl. travel",
 
 def provider_summaries(task_id: str) -> dict[str, str]:
     """One deterministic line per provider, built only from active facts (no model)."""
-    task, providers, facts = repo.get_task(task_id), repo.get_providers(task_id), repo.list_facts(task_id)
+    return provider_summaries_for(repo.get_task(task_id), repo.get_providers(task_id),
+                                  repo.list_facts(task_id))
+
+
+def provider_summaries_for(task, providers, facts) -> dict[str, str]:
+    """Pure form for callers that already loaded task/providers/facts (the workspace snapshot)."""
     reasons = eligibility_for(task, providers, facts)
     active = current_facts(facts)
     out = {}

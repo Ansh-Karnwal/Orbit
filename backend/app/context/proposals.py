@@ -1,6 +1,6 @@
 from app.core import repo
 from app.core.schemas import Proposal
-from app.context.decisions import approval_validity, eligibility_for, proposal_for
+from app.context.decisions import approval_validity, best_proposal_for, eligibility_for, proposal_for
 
 
 def eligibility(task_id: str) -> dict[str, list[str]]:
@@ -13,9 +13,7 @@ def build_proposal(task_id: str, provider_id: str) -> Proposal | None:
 
 def best_proposal(task_id: str) -> Proposal | None:
     task, providers, facts = repo.get_task(task_id), repo.get_providers(task_id), repo.list_facts(task_id)
-    options = [proposal_for(task, p, facts, providers) for p in providers]
-    return min((p for p in options if p is not None),
-               key=lambda p: (p.visit_charge_cents, p.slot_start, p.provider_id), default=None)
+    return best_proposal_for(task, providers, facts)
 
 
 def approval_still_valid(task_id: str) -> tuple[bool, str]:

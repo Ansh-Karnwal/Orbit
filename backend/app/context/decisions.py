@@ -83,6 +83,13 @@ def proposal_for(task, provider, facts, providers=None) -> Proposal | None:
                     terms_version=max(f.version for f in used), source_fact_ids=[f.id for f in used])
 
 
+def best_proposal_for(task, providers, facts) -> Proposal | None:
+    options = (proposal_for(task, provider, facts, providers) for provider in providers)
+    return min((proposal for proposal in options if proposal is not None),
+               key=lambda proposal: (proposal.visit_charge_cents, proposal.slot_start, proposal.provider_id),
+               default=None)
+
+
 def approval_validity(task, providers, facts, approval) -> tuple[bool, str]:
     if approval is None:
         return False, "No approval requested"

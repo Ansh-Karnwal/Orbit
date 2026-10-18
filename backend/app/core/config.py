@@ -4,6 +4,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -37,6 +38,9 @@ class Settings(BaseSettings):
 
     fixture_auto_followups: bool = False
     sentry_dsn: str = ""
+    sentry_environment: str = "development"
+    sentry_release: str = ""
+    sentry_traces_sample_rate: float = Field(default=1.0, ge=0.0, le=1.0)
 
 
 @lru_cache

@@ -83,6 +83,26 @@ async def test_raise_budget_answer_resumes_and_books(task, env):
     assert answered["choice"] == "raise_budget" and answered["by"] == "demo_user"
 
 
+async def test_worker_tick_during_an_answer_cannot_strand_the_task(task, env, monkeypatch):
+    """Regression (found in the live drive after merging main): a worker tick that runs
+    between the answer and its replan must not conclude "nothing left" and re-block."""
+    from app.core import coordinator, planner
+    await _both_over_budget(task.id)
+    real_replan = planner.replan
+
+    def tick_sneaks_in_first(task_id, reason):
+        coordinator._derive_status(task_id)          # what a concurrent tick would do
+        return real_replan(task_id, reason)
+    monkeypatch.setattr(planner, "replan", tick_sneaks_in_first)
+
+    t = _answer(task.id, "raise_budget", max_visit_charge_cents=17500)
+    assert t.status == S.PLANNING
+    assert "nothing left" not in " ".join(e.message for e in repo.list_timeline(task.id))
+    await ticks(task.id)
+    assert repo.get_task(task.id).status == S.AWAITING_APPROVAL
+    assert repo.get_latest_approval(task.id).proposal.provider_id == "provider_b"
+
+
 async def test_answer_validation(task, env):
     await _both_over_budget(task.id)
     q = questions.open_question(task.id)

@@ -75,13 +75,14 @@ def ask(task_id: str, text: str, code: str, data: dict[str, Any] | None = None) 
     return qid
 
 
-def open_question(task_id: str) -> OpenQuestion | None:
-    """The latest question.asked not followed by its question.answered, while BLOCKED."""
-    task = repo.get_task(task_id)
+def open_question(task_id: str, task=None, timeline=None) -> OpenQuestion | None:
+    """The latest question.asked not followed by its question.answered, while BLOCKED.
+    Pass an already-loaded `task` / `timeline` to avoid re-querying (workspace snapshot)."""
+    task = task or repo.get_task(task_id)
     if task.status != S.BLOCKED:
         return None
     asked = answered = None
-    for ev in repo.list_timeline(task_id):
+    for ev in (timeline if timeline is not None else repo.list_timeline(task_id)):
         if ev.type == "question.asked" and ev.data.get("question_id"):
             asked = ev
         elif ev.type == "question.answered":

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from app.context import facts as ctx_facts
 from app.context import proposals as ctx_proposals
-from app.core import repo, worker
+from app.core import repo, telemetry, worker
 from app.core.evidence import save_evidence
 from app.core.schemas import TERMINAL_STATUSES, Approval, ApprovalDecisionIn
 
@@ -74,6 +74,8 @@ def decide(task_id: str, body: ApprovalDecisionIn, approver: str | None = None) 
                "proposal_hash": a.proposal_hash, "provider_id": a.proposal.provider_id,
                "scope": body.scope if body.decision == "rejected" else None,
                "reason": body.reason if body.decision == "rejected" else None})
+    telemetry.record("approval.decided", task_id, provider_id=a.proposal.provider_id,
+                     decision=body.decision, mode=task.mode)
     if body.decision == "rejected":
         _record_decline(task_id, a, body, approver)
     worker.wake(task_id)

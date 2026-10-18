@@ -142,10 +142,14 @@ def answer(task_id: str, body: AnswerIn, user_id: str) -> Task:
         repo.update_task_terms(task_id, limits=new)
 
     answered(label)
-    repo.set_status(task_id, S.PLANNING, f"you chose: {label}")
+    # Build the new plan while the task is still BLOCKED, and only then let it run. A worker
+    # tick in between must not see PLANNING with the old (fully skipped) plan and conclude
+    # there's "nothing left" — a BLOCKED task never asks that.
     if new_provider is not None:
         planner.add_provider_chain(task_id, new_provider.id, f"you added {new_provider.name}")
     elif replan_reason:
         planner.replan(task_id, f"you chose to {replan_reason}")
+    if repo.get_task(task_id).status == S.BLOCKED and questions.open_question(task_id) is None:
+        repo.set_status(task_id, S.PLANNING, f"you chose: {label}")   # else: replan asked again
     worker.wake(task_id)
     return repo.get_task(task_id)

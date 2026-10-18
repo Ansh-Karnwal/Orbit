@@ -115,8 +115,7 @@ def list_tasks(service: str | None = None, status: TaskStatus | None = None,
 
 @router.get("/tasks/{task_id}", response_model=TaskView)
 def get_task_view(task_id: str, user: UserInfo = Depends(current_user)) -> TaskView:
-    owned_task(task_id, user)
-    return build_view(task_id)
+    return build_view(task_id, task=owned_task(task_id, user))   # one tasks query, not two
 
 
 @router.get("/tasks/{task_id}/events")

@@ -18,6 +18,7 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from time import perf_counter
 from typing import Any, Awaitable, Callable, Literal
 from zoneinfo import ZoneInfo
 
@@ -30,6 +31,7 @@ from app.context import facts as ctx_facts
 from app.context import proposals as ctx_proposals
 from app.context import summary as ctx_summary
 from app.context.domain import load_pack
+from app.context.values import slot_pairs
 from app.core import budgets, planner, questions, repo, telemetry
 from app.core import evidence as core_evidence
 from app.core.config import get_settings
@@ -388,6 +390,16 @@ async def _read_availability(task: Task, step: PlanStep) -> Outcome:
               + (" (fixture)" if b.is_fixture else ""),
               {"provider_id": p.id, "step_id": step.id, "slots": slots,
                "evidence_ids": r.evidence_ids, "is_fixture": b.is_fixture})
+    offered_fact = repo.get_active_fact(task.id, f"{p.id}.slots_offered")
+    offered = slot_pairs(offered_fact.value) if offered_fact else set()
+    portal = slot_pairs(slots)
+    within = {(a, z) for a, z in offered
+              if task.constraints.window_start <= a < z <= task.constraints.window_end}
+    telemetry.record("availability.checked", task.id, provider_id=p.id, step_id=step.id,
+                     mode=task.mode, offered_count=len(offered), portal_count=len(portal),
+                     within_window_count=len(within), matching_count=len(within & portal),
+                     demo_run_id=task.id if b.is_fixture else "",
+                     reason_code="bookable" if within & portal else "no_matching_portal_slot")
     return _ok({"slots": slots}, facts_changed=res.changed)
 
 
@@ -503,6 +515,8 @@ def _booking_done(task: Task, step: PlanStep, action: ToolAction, req: BookingRe
                    provider_ref=conf.confirmation_id if conf else r.session_ref,
                    evidence_ids=r.evidence_ids)
     is_fixture = registry.browser().is_fixture
+    telemetry.record("booking.submitted", task.id, provider_id=req.proposal.provider_id,
+                     step_id=step.id, mode=task.mode, status=r.status)
     repo.emit(task.id, "booking.submitted",
               f"Booking {'confirmed' if r.status == 'confirmed' else 'submitted'} with "
               f"{req.proposal.provider_name}" + (f" ({conf.confirmation_id})" if conf else "")
@@ -537,6 +551,8 @@ def reconcile_interrupted_booking(task: Task, step: PlanStep, action: ToolAction
 
 
 def _booking_ambiguous(task: Task, step: PlanStep, action: ToolAction, why: str) -> Outcome:
+    telemetry.record("booking.ambiguous", task.id, level=logging.WARNING, provider_id=step.provider_id,
+                     step_id=step.id, mode=task.mode, reason_code="response_uncertain")
     repo.emit(task.id, "booking.ambiguous",
               f"Booking outcome unclear ({why}); checking the portal before doing anything else",
               {"provider_id": step.provider_id, "step_id": step.id, "action_id": action.id,
@@ -654,6 +670,8 @@ async def _verify(task: Task, step: PlanStep) -> Outcome:
     _move(task.id, S.VERIFYING, "verifying booking evidence")
     v = await verifier.verify(task.id)
     repo.save_verification(v)
+    telemetry.record("booking.verified", task.id, step_id=step.id, provider_id=step.provider_id,
+                     mode=task.mode, verdict=v.verdict.value)
     repo.emit(task.id, "verification.completed", f"Verification: {v.verdict.value}. {v.explanation}",
               {"verification_id": v.id, "verdict": v.verdict.value, "approval_id": v.approval_id,
                "explanation": v.explanation,
@@ -764,6 +782,31 @@ def _paused(task_id: str) -> bool:
     """BLOCKED with an unanswered question: nothing runs until the user answers."""
     return (repo.get_task(task_id).status == S.BLOCKED
             and questions.open_question(task_id) is not None)
+
+
+async def _execute_step(task: Task, step: PlanStep) -> Outcome:
+    attributes = {"task_id": task.id, "step_id": step.id, "step_kind": step.kind.value,
+                  "provider_id": step.provider_id or "", "attempt": step.attempts, "mode": task.mode}
+    started = perf_counter()
+    with telemetry.operation("orbit.step", step.kind.value, **attributes) as span:
+        try:
+            result = await EXECUTORS[step.kind](task, step)
+        except Exception as exc:
+            telemetry.record("workflow.step.failed", task.id, level=logging.WARNING,
+                             **{k: v for k, v in attributes.items() if k != "task_id"},
+                             error_type=type(exc).__name__, duration_ms=round((perf_counter() - started) * 1000, 2))
+            raise
+        if span is not None:
+            span.set_data("outcome", result.kind)
+            if result.kind == "failed":
+                span.set_status("internal_error" if result.retryable or result.exc else "ok")
+        if result.kind != "waiting":
+            telemetry.record("workflow.step.finished", task.id,
+                             **{k: v for k, v in attributes.items() if k != "task_id"},
+                             outcome=result.kind, retrying=result.retryable and step.attempts < step.max_attempts,
+                             facts_changed=result.facts_changed,
+                             duration_ms=round((perf_counter() - started) * 1000, 2))
+        return result
 
 
 async def _process_inbound(task_id: str) -> bool:
@@ -882,7 +925,7 @@ async def _run_wave(task_id: str) -> tuple[bool, list[str]]:
             progressed = True
         running.append(s)
 
-    outcomes = await asyncio.gather(*(EXECUTORS[s.kind](task, s) for s in running),
+    outcomes = await asyncio.gather(*(_execute_step(task, s) for s in running),
                                     return_exceptions=True)
     reasons: list[str] = []
     facts_changed = False
@@ -979,13 +1022,14 @@ async def _send_reports(task_id: str) -> None:
 
 
 async def tick(task_id: str) -> None:
-    try:
-        await _tick(task_id)
-    finally:
+    with telemetry.workflow(task_id):
         try:
-            await _send_reports(task_id)
-        except Exception:  # noqa: BLE001 — reporting must never break coordination
-            log.exception("sending reports failed for task %s", task_id)
+            await _tick(task_id)
+        finally:
+            try:
+                await _send_reports(task_id)
+            except Exception:  # noqa: BLE001 — reporting must never break coordination
+                log.exception("sending reports failed for task %s", task_id)
 
 
 async def _tick(task_id: str) -> None:
