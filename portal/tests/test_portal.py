@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import sqlite3
 import sys
 import time
 from datetime import datetime, timezone
@@ -110,6 +111,36 @@ def test_booking_taken_slot_is_unavailable(client):
     assert r.status_code == 409 and 'data-error="slot_unavailable"' in r.text
     assert "Booking confirmed" not in r.text
     assert book_json(client, ref="ORB-other").json()["error"] == "slot_unavailable"
+
+
+def test_demo_run_ignores_previous_bookings_without_erasing_them(client):
+    old = book_json(client).json()["booking"]
+    params = {"date": TUE, "demo_run_id": "tsk_fresh"}
+    assert B_SLOT in [s["start"] for s in client.get("/api/p/provider_b/slots", params=params).json()["slots"]]
+    body = {"slot_start": B_SLOT, "service": "dishwasher_repair", "customer_name": "Demo",
+            "customer_contact": "demo@example.com", "reference": "ORB-fresh", "demo_run_id": "tsk_fresh"}
+    assert client.post("/api/p/provider_b/book", json=body).status_code == 201
+    assert client.post("/api/p/provider_b/book", json=body).status_code == 409
+    assert B_SLOT not in [s["start"] for s in client.get("/api/p/provider_b/slots", params=params).json()["slots"]]
+    assert client.get("/api/p/provider_b/bookings", params={"ref": "ORB-fresh"}).json()["bookings"] == []
+    state = client.get("/admin/state").json()
+    assert len(state["bookings"]) == 2 and old in state["bookings"]
+
+
+def test_existing_portal_database_keeps_bookings_when_upgraded(tmp_path):
+    path = tmp_path / "portal.db"
+    app = create_app(path, now_fn=lambda: NOW)
+    with TestClient(app) as initial:
+        original = book_json(initial).json()["booking"]
+    app.state.store._db.close()
+    with sqlite3.connect(path) as db:
+        db.execute("ALTER TABLE bookings DROP COLUMN demo_run_id")
+    upgraded = create_app(path, now_fn=lambda: NOW)
+    with TestClient(upgraded) as client:
+        assert client.get("/admin/state").json()["bookings"] == [original]
+        assert book_json(client).status_code == 409
+        fresh = client.get("/api/p/provider_b/slots", params={"date": TUE, "demo_run_id": "tsk_new"})
+        assert B_SLOT in [s["start"] for s in fresh.json()["slots"]]
 
 
 def test_no_dedup_by_reference(client):

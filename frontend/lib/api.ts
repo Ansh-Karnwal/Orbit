@@ -93,6 +93,26 @@ export const api = {
     USE_MOCKS
       ? (await mocks()).get(id).evidence
       : request(`${taskPath(id)}/evidence`),
+  source: async (
+    id: string,
+    sourceId: string,
+    signal?: AbortSignal,
+  ): Promise<EvidenceArtifact> => {
+    if (!USE_MOCKS)
+      return request(
+        `${taskPath(id)}/sources/${encodeURIComponent(sourceId)}`,
+        undefined,
+        signal,
+      );
+    const view = (await mocks()).get(id);
+    const source = view.evidence.find((e) => e.id === sourceId);
+    if (!source)
+      throw new ApiError(
+        404,
+        "The source message is unavailable for this task.",
+      );
+    return source;
+  },
   reset: async (body: DemoResetIn): Promise<DemoResetResult> =>
     USE_MOCKS
       ? {

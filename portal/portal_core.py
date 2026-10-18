@@ -103,9 +103,13 @@ class Store:
                 slot_start TEXT NOT NULL, slot_end TEXT NOT NULL, visit_charge_cents INTEGER NOT NULL,
                 cancellation_terms TEXT NOT NULL, reference TEXT NOT NULL DEFAULT '',
                 customer_name TEXT NOT NULL, customer_contact TEXT NOT NULL,
-                notes TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL);
+                notes TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL,
+                demo_run_id TEXT NOT NULL DEFAULT '');
             CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
         """)
+        columns = {row["name"] for row in self._db.execute("PRAGMA table_info(bookings)")}
+        if "demo_run_id" not in columns:
+            self._db.execute("ALTER TABLE bookings ADD COLUMN demo_run_id TEXT NOT NULL DEFAULT ''")
         self._db.commit()
 
     def fault(self) -> tuple[FaultMode, float]:
@@ -131,23 +135,29 @@ class Store:
     def insert_booking(self, b: dict[str, Any]) -> None:
         with self._lock:
             self._db.execute(
-                "INSERT INTO bookings VALUES (:confirmation_id, :provider_id, :service, :slot_start,"
+                "INSERT INTO bookings (confirmation_id, provider_id, service, slot_start, slot_end,"
+                " visit_charge_cents, cancellation_terms, reference, customer_name, customer_contact,"
+                " notes, created_at, demo_run_id)"
+                " VALUES (:confirmation_id, :provider_id, :service, :slot_start,"
                 " :slot_end, :visit_charge_cents, :cancellation_terms, :reference, :customer_name,"
-                " :customer_contact, :notes, :created_at)", b)
+                " :customer_contact, :notes, :created_at, :demo_run_id)", b)
             self._db.commit()
 
-    def bookings(self, provider_id: str | None = None, reference: str | None = None) -> list[dict]:
+    def bookings(self, provider_id: str | None = None, reference: str | None = None,
+                 demo_run_id: str | None = None) -> list[dict]:
         sql, args = "SELECT * FROM bookings WHERE 1=1", []
         if provider_id is not None:
             sql, args = sql + " AND provider_id=?", args + [provider_id]
         if reference is not None:
             sql, args = sql + " AND reference=?", args + [reference]
+        if demo_run_id is not None:
+            sql, args = sql + " AND demo_run_id=?", args + [demo_run_id]
         with self._lock:
             rows = self._db.execute(sql + " ORDER BY created_at", args).fetchall()
         return [dict(r) for r in rows]
 
-    def booked_starts(self, provider_id: str) -> set[str]:
-        return {b["slot_start"] for b in self.bookings(provider_id)}
+    def booked_starts(self, provider_id: str, demo_run_id: str = "") -> set[str]:
+        return {b["slot_start"] for b in self.bookings(provider_id, demo_run_id=demo_run_id)}
 
 
 # ---------------------------------------------------------------- API models
@@ -163,6 +173,7 @@ class BookIn(BaseModel):
     customer_contact: str
     reference: str = ""
     notes: str = ""
+    demo_run_id: str = ""             # fixture task ID; each run has fresh availability
 
 
 class BookingError(Exception):
@@ -191,11 +202,11 @@ def create_app(db_path: Path | str | None = None,
             day += timedelta(days=1)
         return days
 
-    def slots_for(pid: str, day: date) -> list[dict[str, Any]]:
+    def slots_for(pid: str, day: date, demo_run_id: str = "") -> list[dict[str, Any]]:
         prov = cat.provider(pid)
         if day not in booking_days():
             return []
-        taken, current, out = store.booked_starts(pid), now(), []
+        taken, current, out = store.booked_starts(pid, demo_run_id), now(), []
         for start_s, end_s in prov["daily_slots"]:
             start = datetime.combine(day, time.fromisoformat(start_s), tzinfo=cat.tz).astimezone(UTC)
             end = datetime.combine(day, time.fromisoformat(end_s), tzinfo=cat.tz).astimezone(UTC)
@@ -205,13 +216,13 @@ def create_app(db_path: Path | str | None = None,
                         "label": slot_label(start, end, cat.tz)})
         return out
 
-    def find_slot(pid: str, slot_start: str) -> dict[str, Any] | None:
+    def find_slot(pid: str, slot_start: str, demo_run_id: str = "") -> dict[str, Any] | None:
         try:
             start = parse_utc(slot_start)
         except ValueError:
             return None
         day = start.astimezone(cat.tz).date()
-        return next((s for s in slots_for(pid, day) if s["start"] == iso_z(start)), None)
+        return next((s for s in slots_for(pid, day, demo_run_id) if s["start"] == iso_z(start)), None)
 
     # ------------------------------------------------ booking core
     def check_booking(pid: str, data: BookIn) -> tuple[dict, dict]:
@@ -221,7 +232,7 @@ def create_app(db_path: Path | str | None = None,
             raise BookingError(422, "unknown_service", "That service is not offered.")
         if not data.customer_name.strip() or not data.customer_contact.strip():
             raise BookingError(422, "missing_fields", "Name and contact are required.")
-        slot = find_slot(pid, data.slot_start)
+        slot = find_slot(pid, data.slot_start, data.demo_run_id)
         if slot is None:
             raise BookingError(409, "slot_unavailable",
                                "Sorry, that time is no longer available. Please choose another slot.")
@@ -238,6 +249,7 @@ def create_app(db_path: Path | str | None = None,
             "customer_name": data.customer_name.strip(),
             "customer_contact": data.customer_contact.strip(), "notes": data.notes.strip(),
             "created_at": now().astimezone(UTC).isoformat(),
+            "demo_run_id": data.demo_run_id,
         }
         store.insert_booking(booking)
         return booking
@@ -342,7 +354,7 @@ def create_app(db_path: Path | str | None = None,
     @app.get("/p/{pid}/lookup", response_class=HTMLResponse)
     def lookup(request: Request, pid: str, ref: str = ""):
         prov = cat.provider(pid)
-        found = [view(b) for b in store.bookings(pid, ref.strip())] if ref.strip() else []
+        found = [view(b) for b in store.bookings(pid, ref.strip(), demo_run_id="")] if ref.strip() else []
         return page(request, "lookup.html", pid=pid, provider=prov, ref=ref, bookings=found)
 
     # ------------------------------------------------ JSON API
@@ -351,14 +363,14 @@ def create_app(db_path: Path | str | None = None,
         return {"provider_id": pid, "timezone": str(cat.tz), **cat.provider(pid)}
 
     @app.get("/api/p/{pid}/slots")
-    def api_slots(pid: str, date_: str = Query(..., alias="date")):
+    def api_slots(pid: str, date_: str = Query(..., alias="date"), demo_run_id: str = ""):
         cat.provider(pid)
         try:
             day = date.fromisoformat(date_)
         except ValueError:
             raise HTTPException(422, "date must be YYYY-MM-DD")
         return {"provider_id": pid, "date": day.isoformat(), "timezone": str(cat.tz),
-                "slots": slots_for(pid, day)}
+                "slots": slots_for(pid, day, demo_run_id)}
 
     @app.post("/api/p/{pid}/book")
     async def api_book(pid: str, body: BookIn):
@@ -378,9 +390,10 @@ def create_app(db_path: Path | str | None = None,
                             status_code=201)
 
     @app.get("/api/p/{pid}/bookings")
-    def api_bookings(pid: str, ref: str):
+    def api_bookings(pid: str, ref: str, demo_run_id: str = ""):
         cat.provider(pid)
-        return {"provider_id": pid, "reference": ref, "bookings": store.bookings(pid, ref.strip())}
+        return {"provider_id": pid, "reference": ref,
+                "bookings": store.bookings(pid, ref.strip(), demo_run_id=demo_run_id)}
 
     # ------------------------------------------------ admin
     @app.post("/admin/fault")

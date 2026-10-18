@@ -1,4 +1,4 @@
-import { Check, Clock3, ExternalLink, TriangleAlert } from "lucide-react";
+import { Check, Clock3, ExternalLink, TriangleAlert, X } from "lucide-react";
 import { localRange, money, safeWording } from "@/lib/format";
 import type { ContextFact, ProviderSpec, TaskView } from "@/lib/types";
 function factValue(fact: ContextFact, tz: string): string {
@@ -6,20 +6,22 @@ function factValue(fact: ContextFact, tz: string): string {
     return money(fact.value);
   if (fact.key.endsWith("slots_offered") || fact.key.endsWith("portal_slots")) {
     if (Array.isArray(fact.value))
-      return fact.value
-        .map((s: unknown) => {
-          if (
-            s &&
-            typeof s === "object" &&
-            "start" in s &&
-            "end" in s &&
-            typeof s.start === "string" &&
-            typeof s.end === "string"
-          )
-            return localRange(s.start, s.end, tz);
-          return "Slot data unavailable";
-        })
-        .join(" / ");
+      return fact.value.length
+        ? fact.value
+            .map((s: unknown) => {
+              if (
+                s &&
+                typeof s === "object" &&
+                "start" in s &&
+                "end" in s &&
+                typeof s.start === "string" &&
+                typeof s.end === "string"
+              )
+                return localRange(s.start, s.end, tz);
+              return "Slot data unavailable";
+            })
+            .join("\n")
+        : "No open appointments";
   }
   if (fact.key.endsWith("repair_cost_known"))
     return fact.value === true
@@ -94,12 +96,20 @@ export function ProviderCard({
 }) {
   const facts = view.facts.filter((f) => f.key.startsWith(`${provider.id}.`)),
     reasons = view.eligibility[provider.id],
-    known = !!reasons,
+    known =
+      !!reasons &&
+      facts.some((f) => f.key === `${provider.id}.visit_charge_cents`),
     eligible = known && reasons.length === 0;
-  const visitChargeFacts = facts.filter((f) => f.key === `${provider.id}.visit_charge_cents`);
+  const declined = view.approvals.some(
+    (a) => a.proposal.provider_id === provider.id && a.status === "rejected",
+  );
+  const visitChargeFacts = facts.filter(
+    (f) => f.key === `${provider.id}.visit_charge_cents`,
+  );
   const fields = [
     ["fee_scope", "Includes"],
-    ["slots_offered", "Offered window"],
+    ["slots_offered", "Provider offered"],
+    ["portal_slots", "Portal availability"],
     ["cancellation_terms", "Cancellation"],
   ];
   return (
@@ -117,21 +127,31 @@ export function ProviderCard({
             <h3>{provider.name}</h3>
           </div>
         </div>
-        <span className={`badge ${eligible ? "green" : known ? "amber" : ""}`}>
-          {eligible ? (
+        <span
+          className={`badge ${declined ? "" : eligible ? "green" : known ? "amber" : ""}`}
+        >
+          {declined ? (
+            <X size={13} />
+          ) : eligible ? (
             <Check size={13} />
           ) : known ? (
             <TriangleAlert size={13} />
           ) : (
             <Clock3 size={13} />
           )}{" "}
-          {eligible ? "Eligible" : known ? "Review" : "Inquiring"}
+          {declined
+            ? "Declined"
+            : eligible
+              ? "Fits your request"
+              : known
+                ? "Unavailable"
+                : "Checking"}
         </span>
       </div>
 
       {visitChargeFacts.length > 0 && (
         <div className="provider-pricing-highlight">
-          <span className="pricing-label">Visit Charge</span>
+          <span className="pricing-label">Visit charge</span>
           <FactHistory
             facts={visitChargeFacts}
             timezone={view.task.constraints.timezone}
@@ -141,7 +161,7 @@ export function ProviderCard({
         </div>
       )}
 
-      {reasons && reasons.length > 0 && (
+      {known && reasons && reasons.length > 0 && (
         <div className="reasons-banner">
           {reasons.map((r) => (
             <span key={r} className="reason-item">
@@ -177,6 +197,9 @@ export function ProviderCard({
           })}
         </dl>
       )}
+      <p className="provider-footnote">
+        Parts and labor are quoted after diagnosis.
+      </p>
     </article>
   );
 }
