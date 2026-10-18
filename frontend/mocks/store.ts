@@ -66,6 +66,12 @@ export const mock = {
     return v;
   },
   list() {
+    if (typeof sessionStorage !== "undefined") {
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key?.startsWith("orbit:")) run(key.slice(6));
+      }
+    }
     return [...runs.keys()].map((id) => mock.get(id).task);
   },
   create(input: TaskCreate) {
@@ -134,7 +140,7 @@ export const mock = {
       r.stopped = true;
       v.task.status = "BLOCKED";
       v.task.status_reason =
-        "Proposal rejected. Reset the offline story to try again.";
+        "You declined this proposal. Revise it as a new request or stop coordination here.";
       v.current_proposal = null;
     } else if (r.index === 4) r.index = 5;
     else {
@@ -174,6 +180,15 @@ export const mock = {
   },
   cancel(id: string) {
     const r = run(id);
+    const view = r.snapshots[r.index];
+    if (["COMPLETED", "FAILED", "CANCELLED"].includes(view.task.status))
+      throw new ApiError(409, "This request has already ended.");
+    view.approvals
+      .filter((a) => a.status === "requested")
+      .forEach((a) => {
+        a.status = "invalidated";
+        a.invalidated_reason = "Coordination stopped.";
+      });
     r.stopped = true;
     r.snapshots[r.index].task.status = "CANCELLED";
     notify(id);

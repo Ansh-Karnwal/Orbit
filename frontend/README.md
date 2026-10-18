@@ -11,6 +11,10 @@ npm run dev
 
 Open http://localhost:3000. `.env.local` defaults to `NEXT_PUBLIC_USE_MOCKS=1`. The root `.env` is not automatically loaded by Next.js when it runs from `frontend/`.
 
+The Outcomes page at `/tasks` lists saved requests. A rejected request can be stopped or copied into a revised request; revising creates a new task and preserves the original. Stopping coordination does not cancel an existing provider booking. Source dialogs resolve both evidence IDs and inbound message references through the task-scoped backend source endpoint.
+
+The browser suite starts its own offline server on port 3000. Stop an existing frontend before running `npm run test:e2e`; the suite intentionally does not reuse a server that may be connected to live integrations. It covers desktop, 1024px tablet, and phone layouts.
+
 - `NEXT_PUBLIC_USE_MOCKS=1`: browser-local fixture snapshots; no backend, messaging, LLM, browser-agent, or verifier execution. Automatic updates every three seconds, paused at approval cards. Use the price-change control at the Ace proposal. Only an explicit decision advances an approval.
 - `NEXT_PUBLIC_USE_MOCKS=0`: real HTTP/SSE against `NEXT_PUBLIC_API_BASE` (default `http://localhost:8000`). No silent fallback to mocks. Restart/rebuild when changing public variables.
 - Live intake requires `/health` to report live Photon and Browser Use integrations and the seed/import to provide non-fixture provider handles. The frontend does not invent handles or change the seed API.

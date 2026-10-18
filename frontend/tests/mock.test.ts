@@ -16,6 +16,21 @@ function toB(id: string) {
   });
   mock.tick(id);
 }
+it("stopping a mock request withdraws approval and rejects a later decision", () => {
+  const id = start();
+  const approval = mock.get(id).approvals[0];
+  mock.cancel(id);
+  expect(mock.get(id).approvals[0].status).toBe("invalidated");
+  expect(() =>
+    mock.approve(id, {
+      proposal_hash: approval.proposal_hash,
+      decision: "approved",
+      approver: "test",
+    }),
+  ).toThrow("Terms changed");
+  mock.tick(id);
+  expect(mock.get(id).task.status).toBe("CANCELLED");
+});
 it("pauses without auto approval, rejects stale hashes and deduplicates", () => {
   const id = start();
   const a = mock.get(id).approvals[0];
