@@ -21,6 +21,8 @@ The browser suite starts its own offline server on port 3000. Stop an existing f
 - `NEXT_PUBLIC_USE_MOCKS=0`: real HTTP/SSE against `NEXT_PUBLIC_API_BASE` (default `http://localhost:8000`). No silent fallback to mocks. Restart/rebuild when changing public variables.
 - Live intake requires `/health` to report live Photon and Browser Use integrations and the seed/import to provide non-fixture provider handles. The frontend does not invent handles or change the seed API.
 
+With the fixture backend, each new demo request starts with fresh portal availability. You can repeatedly book the same sample appointment across separate requests; bookings and reconciliation remain scoped to that request, and previous outcomes stay in history.
+
 The fixed offline scenario requires the next Tuesday 2–5 p.m. Los Angeles window, $150 visit budget, and canonical providers. Custom requests require the backend. Mock task state persists in the current tab's session storage. Reset opens a new mock task.
 
 ```sh

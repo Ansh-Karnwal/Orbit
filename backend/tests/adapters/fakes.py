@@ -45,12 +45,12 @@ def provider(pid: str = "provider_b", handle: str | None = None) -> ProviderSpec
 
 
 def booking_request(ref: str = "ORB-test0001", slot_start: str = B_SLOT_START,
-                    slot_end: str = B_SLOT_END) -> BookingRequest:
+                    slot_end: str = B_SLOT_END, task_id: str = "tsk_test") -> BookingRequest:
     proposal = Proposal(
-        task_id="tsk_test", provider_id="provider_b", provider_name="Bayside Appliance Service",
+        task_id=task_id, provider_id="provider_b", provider_name="Bayside Appliance Service",
         service="dishwasher_repair", slot_start=slot_start, slot_end=slot_end,
         visit_charge_cents=14500, fee_scope="diagnostic_visit_including_travel",
         cancellation_terms="Cancel free more than 12 hours ahead, $25 inside 12 hours.",
         terms_version=1, source_fact_ids=["fct_1"])
-    return BookingRequest(task_id="tsk_test", proposal=proposal, approval_id="apr_test",
+    return BookingRequest(task_id=task_id, proposal=proposal, approval_id="apr_test",
                           orbit_ref=ref)

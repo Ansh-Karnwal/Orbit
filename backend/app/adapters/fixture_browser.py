@@ -63,7 +63,8 @@ class FixtureBrowserAdapter:
                                 tz: str) -> AvailabilityResult:
         url = f"{self._base(provider)}/api/p/{provider.id}/slots"
         try:
-            r = await self._request("GET", url, READ_TIMEOUT_S, params={"date": day_local.isoformat()})
+            r = await self._request("GET", url, READ_TIMEOUT_S,
+                                    params={"date": day_local.isoformat(), "demo_run_id": task_id})
             r.raise_for_status()
         except httpx.HTTPError as e:
             return AvailabilityResult(slots=[], error=f"portal availability failed: {e!r}")
@@ -73,6 +74,7 @@ class FixtureBrowserAdapter:
             task_id, "availability", "fixture_browser", is_fixture=True,
             extracted={"provider_id": provider.id, "date": day_local.isoformat(), "timezone": tz,
                        "slots": [s.model_dump(mode="json") for s in slots], "url": url,
+                       "demo_run_id": task_id,
                        "screenshots": NO_SCREENSHOTS},
             claim_level=ClaimLevel.SLOT_OFFERED)
         return AvailabilityResult(slots=slots, evidence_ids=[ev.id])
@@ -82,7 +84,8 @@ class FixtureBrowserAdapter:
         url = f"{self._base()}/api/p/{p.provider_id}/book"
         body = {"slot_start": iso_z(p.slot_start), "service": p.service,
                 "customer_name": req.customer_name, "customer_contact": req.customer_contact,
-                "reference": req.orbit_ref, "notes": f"Booked by Orbit (approval {req.approval_id})"}
+                "reference": req.orbit_ref, "notes": f"Booked by Orbit (approval {req.approval_id})",
+                "demo_run_id": req.task_id}
         try:
             r = await self._request("POST", url, BOOK_TIMEOUT_S, json=body)
         except NOT_SENT as e:
@@ -118,7 +121,8 @@ class FixtureBrowserAdapter:
         `ambiguous` result if the portal couldn't be asked (so callers never resubmit blindly)."""
         url = f"{self._base(provider)}/api/p/{provider.id}/bookings"
         try:
-            r = await self._request("GET", url, READ_TIMEOUT_S, params={"ref": orbit_ref})
+            r = await self._request("GET", url, READ_TIMEOUT_S,
+                                    params={"ref": orbit_ref, "demo_run_id": task_id})
             r.raise_for_status()
         except httpx.HTTPError as e:
             return BookingResult(status="ambiguous", error=f"booking lookup failed: {e!r}")
