@@ -3,7 +3,7 @@ anything else is a stale proposal (HTTP 409 code "stale_proposal")."""
 from __future__ import annotations
 
 from app.context import proposals as ctx_proposals
-from app.core import repo, worker
+from app.core import repo, telemetry, worker
 from app.core.schemas import TERMINAL_STATUSES, Approval, ApprovalDecisionIn
 
 
@@ -41,5 +41,7 @@ def decide(task_id: str, body: ApprovalDecisionIn) -> Approval:
               f"{a.proposal.provider_name}",
               {"approval_id": a.id, "decision": body.decision, "approver": body.approver,
                "proposal_hash": a.proposal_hash, "provider_id": a.proposal.provider_id})
+    telemetry.record("approval.decided", task_id, provider_id=a.proposal.provider_id,
+                     decision=body.decision, mode=task.mode)
     worker.wake(task_id)
     return decided

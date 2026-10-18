@@ -15,7 +15,10 @@ _REDACTIONS = [
     (re.compile(r"\b(sk|pk|bu|key|tok)[-_][A-Za-z0-9_-]{8,}"), "[secret]"),
     (re.compile(r"(?i)(authorization|api[-_]?key|x-api-key)(['\"]?\s*[:=]\s*)\S+"), r"\1\2[secret]"),
 ]
-_EXTRA_KEYS = ("task_id", "step_id", "step_kind", "provider_id")
+_EXTRA_KEYS = ("event", "task_id", "step_id", "step_kind", "provider_id", "attempt", "mode",
+               "duration_ms", "outcome", "retrying", "error_type", "verdict", "status",
+               "offered_count", "portal_count", "matching_count", "within_window_count", "demo_run_id",
+               "facts_changed", "decision", "reason_code", "fact_count", "evidence_count", "timeline_count")
 
 
 def redact(text: str) -> str:
