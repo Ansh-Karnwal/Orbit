@@ -13,6 +13,8 @@ Open http://localhost:3000. `.env.local` defaults to `NEXT_PUBLIC_USE_MOCKS=1`. 
 
 The Outcomes page at `/tasks` lists saved requests. A rejected request can be stopped or copied into a revised request; revising creates a new task and preserves the original. Stopping coordination does not cancel an existing provider booking. Source dialogs resolve both evidence IDs and inbound message references through the task-scoped backend source endpoint.
 
+The visual system follows [Wispr Flow](https://wisprflow.ai/): cream surfaces, EB Garamond headings, Figtree body text, lavender actions, and deep green accents. The shared stylesheet applies it to intake, outcome history, task tabs, approvals, dialogs, and receipts. Fonts are self-hosted in `public/fonts`, with their open-source licenses, so builds and runtime do not depend on a font service.
+
 The browser suite starts its own offline server on port 3000. Stop an existing frontend before running `npm run test:e2e`; the suite intentionally does not reuse a server that may be connected to live integrations. It covers desktop, 1024px tablet, and phone layouts.
 
 - `NEXT_PUBLIC_USE_MOCKS=1`: browser-local fixture snapshots; no backend, messaging, LLM, browser-agent, or verifier execution. Automatic updates every three seconds, paused at approval cards. Use the price-change control at the Ace proposal. Only an explicit decision advances an approval.

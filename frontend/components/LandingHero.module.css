@@ -1,148 +1,360 @@
 .hero {
-  display: grid;
-  grid-template-columns: 1.1fr 1fr;
-  align-items: center;
-  gap: 64px;
-  padding: 72px 0 64px;
+  position: relative;
+  width: 100vw;
+  left: 50%;
+  margin-left: -50vw;
+  overflow: hidden;
+  text-align: center;
+  padding: 88px 24px 200px;
+  isolation: isolate;
+}
+.copy {
+  position: relative;
+  z-index: 2;
 }
 .copy h1 {
-  font-size: clamp(44px, 5.3vw, 66px);
-  line-height: 1.07;
-  margin: 16px 0 24px;
+  font-family: var(--font-heading);
+  font-size: clamp(72px, 7.3vw, 104px);
+  font-weight: 400;
+  line-height: 0.94;
+  letter-spacing: -0.035em;
+  margin: 28px 0 36px;
 }
 .copy h1 em {
-  font-style: normal;
-  color: var(--accent);
+  font-weight: 400;
+  font-style: italic;
 }
 .copy p {
-  color: var(--muted);
-  font-size: 18px;
-  max-width: 450px;
-}
-.ctaRow {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-top: 28px;
-}
-.ctaRow small {
-  color: var(--muted);
-  font-size: 13px;
-}
-.preview {
-  position: relative;
-  background: #eef2fb;
-  padding: 24px;
-  border-radius: 24px;
-  border: 1px solid #dce3f4;
-}
-.previewLabel {
-  display: flex;
-  justify-content: space-between;
-  color: var(--muted);
-  font-size: 12px;
-  margin-bottom: 16px;
-}
-.previewCard {
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 24px;
-  background: white;
-  box-shadow: 0 16px 40px #233f7210;
-}
-.previewCard h2 {
+  color: var(--ink);
   font-size: 20px;
-  margin: 12px 0 8px;
+  line-height: 1.4;
+  max-width: 540px;
+  margin: 0 auto 28px;
 }
-.previewCard p {
+.copy > a {
+  min-height: 54px;
+  padding-inline: 24px;
+  font-size: 16px;
+}
+.copy > small {
+  display: block;
+  margin-top: 24px;
   color: var(--muted);
   font-size: 14px;
 }
-.request {
+.ribbon {
+  position: absolute;
+  width: 100vw;
+  max-width: none;
+  height: 280px;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  overflow: visible;
+  z-index: -1;
+  pointer-events: none;
+}
+.looseText {
+  fill: #868676;
+  opacity: 0.5;
+  font-family: var(--font-body);
+  font-size: 18px;
+  font-weight: 500;
+}
+.ribbonLine {
+  stroke: var(--ink);
+  stroke-width: 34;
+}
+.ribbonText {
+  fill: var(--bg);
+  font-family: var(--font-body);
+  font-size: 17px;
+  font-weight: 500;
+}
+.ribbonMark {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  background: var(--bg);
+  border: 2px solid var(--ink);
+  width: 104px;
+  height: 60px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+}
+.ribbonMark svg {
+  color: var(--ink);
+  width: 38px;
+  height: 38px;
+}
+.showcase {
+  position: relative;
+  width: 100vw;
+  left: 50%;
+  margin-left: -50vw;
+  background: var(--green);
+  color: var(--bg);
+  border-radius: 64px;
+  padding: 76px max(24px, calc((100vw - 1100px) / 2)) 56px;
+  scroll-margin-top: 108px;
+}
+.sectionHeading {
+  text-align: center;
+  margin-bottom: 48px;
+}
+.sectionHeading > span {
+  color: var(--bg);
+  opacity: 0.8;
+}
+.sectionHeading h2 {
+  color: var(--bg);
+  font-family: var(--font-heading);
+  font-size: clamp(56px, 6vw, 80px);
+  font-weight: 400;
+  line-height: 0.95;
+  margin: 24px 0;
+}
+.sectionHeading h2 em {
+  font-weight: 400;
+}
+.sectionHeading p {
+  color: var(--bg);
+  font-size: 18px;
+  opacity: 0.85;
+}
+.demo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 20px;
+}
+.requestCard,
+.previewCard {
+  border: 1px solid #1a1a1a;
+  border-radius: 20px;
+  padding: 28px;
+  background: var(--surface);
+  color: var(--ink);
+  min-width: 0;
+}
+.requestCard {
+  background: var(--bg);
+}
+.cardLabel {
   display: flex;
   align-items: center;
-  gap: 9px;
-  color: var(--accent);
-  font-size: 13px;
+  justify-content: space-between;
+  gap: 16px;
+  font-family: var(--font-body);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.requestCard > p {
+  font-family: var(--font-heading);
+  font-size: 30px;
+  line-height: 1.15;
+  margin: 24px 0;
+}
+.boundaries {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.boundaries > span {
+  font-size: 12px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.arrow {
+  display: grid;
+  place-items: center;
+}
+.exampleTag {
+  background: var(--accent-soft);
+  padding: 4px 7px;
+  border-radius: 4px;
+  color: var(--ink);
 }
 .provider {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 20px 0;
-  margin: 20px 0;
-  border-block: 1px solid var(--line);
+  justify-content: space-between;
+  gap: 20px;
+  padding-block: 24px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--line);
 }
-.provider strong {
-  display: block;
-  font-size: 15px;
+.provider h3 {
+  font-family: var(--font-body);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
-.provider small {
-  display: block;
-  margin-top: 5px;
+.provider p {
+  margin-top: 8px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 .price {
-  font-size: 28px;
-  font-weight: 650;
-  letter-spacing: -0.04em;
+  font-family: var(--font-heading);
+  font-size: 44px;
+  line-height: 1;
+  font-weight: 400;
 }
 .check {
   color: var(--green);
   display: flex;
-  align-items: center;
-  gap: 7px;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 14px;
+  margin-top: 8px;
+}
+.check svg {
+  margin-top: 3px;
+}
+.approvalNote {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  background: var(--accent-soft);
+  padding: 12px;
+  border-radius: 8px;
+  margin-top: 24px;
   font-size: 13px;
-  margin-top: 16px;
+}
+.approvalNote svg {
+  margin-top: 2px;
 }
 .how {
-  border-block: 1px solid var(--line);
-  padding: 24px 0;
+  border-top: 1px solid #ffffeb40;
+  padding-top: 32px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 28px;
-  margin-bottom: 64px;
+  gap: 40px;
+  margin-top: 48px;
+}
+.how > div > span {
+  font-size: 12px;
+  opacity: 0.6;
+  display: block;
+  margin-bottom: 12px;
 }
 .how strong {
-  display: block;
-  font-size: 15px;
-  margin-bottom: 6px;
+  font-size: 17px;
+  font-weight: 500;
 }
 .how p {
   font-size: 14px;
-  color: var(--muted);
+  opacity: 0.75;
+  margin-top: 8px;
 }
 @media (max-width: 900px) {
   .hero {
-    gap: 28px;
-    padding-top: 48px;
+    padding-top: 72px;
+  }
+  .demo {
+    gap: 12px;
+    grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr);
+  }
+  .requestCard,
+  .previewCard {
+    padding: 24px;
+  }
+  .requestCard > p {
+    font-size: 27px;
   }
 }
 @media (max-width: 640px) {
   .hero {
-    grid-template-columns: 1fr;
-    padding: 40px 0 32px;
-    gap: 32px;
+    padding: 62px 20px 176px;
   }
   .copy h1 {
-    font-size: 46px;
+    font-size: clamp(55px, 14.9vw, 70px);
+    margin: 24px 0 28px;
   }
   .copy p {
+    font-size: 18px;
+    line-height: 1.4;
+    max-width: 340px;
+  }
+  .copy > small {
+    max-width: 280px;
+    margin: 22px auto 0;
+    font-size: 13px;
+  }
+  .ribbon {
+    width: 210vw;
+    left: 50%;
+    height: 190px;
+    bottom: 0;
+  }
+  .ribbonMark {
+    width: 82px;
+    height: 46px;
+    bottom: 22px;
+  }
+  .ribbonMark svg {
+    width: 31px;
+    height: 31px;
+  }
+  .showcase {
+    border-radius: 36px;
+    padding: 48px 20px 36px;
+  }
+  .sectionHeading {
+    margin-bottom: 32px;
+  }
+  .sectionHeading h2 {
+    font-size: 58px;
+  }
+  .sectionHeading p {
     font-size: 16px;
   }
-  .preview {
-    padding: 16px;
-    border-radius: 20px;
+  .demo {
+    grid-template-columns: 1fr;
+    gap: 16px;
   }
+  .requestCard,
   .previewCard {
-    padding: 20px;
+    padding: 24px;
+    border-radius: 16px;
+  }
+  .arrow {
+    transform: rotate(90deg);
+  }
+  .requestCard > p {
+    font-size: 29px;
+  }
+  .provider {
+    gap: 14px;
+  }
+  .provider h3 {
+    font-size: 16px;
+  }
+  .price {
+    font-size: 40px;
   }
   .how {
     grid-template-columns: 1fr;
-    gap: 20px;
-    margin-bottom: 40px;
+    gap: 24px;
+    margin-top: 36px;
+    padding-top: 28px;
+  }
+  .how > div {
+    display: grid;
+    grid-template-columns: 26px 1fr;
+    gap: 0 12px;
+  }
+  .how > div > span {
+    grid-row: span 2;
+    margin-top: 3px;
+  }
+  .how p {
+    margin-top: 6px;
   }
 }
