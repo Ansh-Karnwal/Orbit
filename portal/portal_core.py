@@ -185,7 +185,8 @@ class BookingError(Exception):
 # ---------------------------------------------------------------- app factory
 def create_app(db_path: Path | str | None = None,
                now_fn: Callable[[], datetime] | None = None) -> FastAPI:
-    cat = Catalogue.load(HERE / "providers.yaml")
+    # PORTAL_CATALOGUE swaps the price list, e.g. providers.live.yaml for the one-text live demo.
+    cat = Catalogue.load(HERE / os.environ.get("PORTAL_CATALOGUE", "providers.yaml"))
     store = Store(Path(db_path or os.environ.get("PORTAL_DB_PATH", HERE / "portal.db")))
     now = now_fn or (lambda: datetime.now(UTC))
     templates = Jinja2Templates(directory=str(HERE / "templates"))

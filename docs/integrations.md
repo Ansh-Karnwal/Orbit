@@ -32,7 +32,7 @@ BROWSER_USE_TIMEOUT_S=120
 
 `PHOTON_BRIDGE_URL` can be dropped, because the Beta API doesn't need a Node sidecar.
 
-Portal-only env vars are `PORTAL_DB_PATH` (default `portal/portal.db`) and `PORTAL_TIMEOUT_DELAY_S` (default 90).
+Portal-only env vars are `PORTAL_DB_PATH` (default `portal/portal.db`), `PORTAL_TIMEOUT_DELAY_S` (default 90) and `PORTAL_CATALOGUE` (default `providers.yaml`; `providers.live.yaml` for the one-text live script).
 
 ## Photon
 
@@ -66,6 +66,14 @@ A shared iMessage line can't send the first message. It only sends "in direct Sp
 3. Create the live task. Orbit learns `(spaceId, agent user id)` from that first text and can now send the inquiry.
 
 If a provider hasn't texted first, `send()` returns `failed` with `shared iMessage line can't send first: provider +1•••••0101 must text the Orbit line once, then retry`. **Victor:** surface that error as BLOCKED rather than retrying in a loop.
+
+### One-text live script (Ace gets booked)
+Start the portal with `PORTAL_CATALOGUE=providers.live.yaml`. In that price list Ace's $120 includes travel and has no extra fee, and Bayside costs $185. Each teammate sends **one** text, exactly as written below, after the inquiry arrives. The verifier compares the cancellation wording with the portal word for word.
+
+- **Ace (provider A):** `Hi! Dishwasher diagnostic visit is $120 including travel. Tuesday 3–4pm. Free cancellation with 24 hours notice.`
+- **Bayside (provider B):** `Yes we repair dishwashers. Diagnostic visit is $185 including travel. Tuesday 2:30–3:30pm or 4–5pm. Cancel free more than 12 hours ahead, $25 inside 12 hours. Parts and labor are quoted after diagnosis.`
+
+Bayside goes over the $150 budget, so Orbit proposes Ace. Browser Use books Ace's 3–4pm slot, and the review page matches the approved $120. The fixture story (Ace's hidden $70 trip charge) still uses `providers.yaml`.
 
 ### Limits
 - 5 req/s per project on the management API (https://photon.codes/docs/api-reference/rate-limit).

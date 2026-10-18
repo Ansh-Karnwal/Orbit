@@ -75,6 +75,15 @@ def test_provider_page_shows_hidden_trip_fee(client):
     assert "Parts and labor quoted after diagnosis" in client.get("/p/provider_b").text
 
 
+def test_live_catalogue_matches_one_text_script(tmp_path, monkeypatch):
+    monkeypatch.setenv("PORTAL_CATALOGUE", "providers.live.yaml")
+    with TestClient(create_app(tmp_path / "live.db", now_fn=lambda: NOW)) as c:
+        a, b = c.get("/api/p/provider_a").json(), c.get("/api/p/provider_b").json()
+    assert a["fees"] == [] and "includes travel" in a["services"][0]["label"]
+    assert a["services"][0]["visit_charge_cents"] == 12000
+    assert b["services"][0]["visit_charge_cents"] == 18500
+
+
 def test_no_payment_fields_anywhere(client):
     for path in ["/", "/p/provider_a", "/p/provider_b", f"/p/provider_b/book?date={TUE}"]:
         html = client.get(path).text.lower()
