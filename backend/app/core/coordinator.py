@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from time import perf_counter
@@ -43,7 +44,7 @@ from app.verify import verifier
 
 log = logging.getLogger("orbit.coordinator")
 
-POLLED_KINDS = {K.AWAIT_REPLY, K.REQUEST_APPROVAL}
+POLLED_KINDS = {K.AWAIT_REPLY, K.REQUEST_APPROVAL, K.CONFIRM_WITH_PROVIDER}
 ACTIVE_STATES = {StepState.PENDING, StepState.READY, StepState.RUNNING}
 MAX_WAVES = 25
 MAX_RECONCILES = 2
@@ -129,6 +130,8 @@ def _derive_status(task_id: str) -> None:
     ready = [s for s in active if s.state == StepState.PENDING and _deps_done(s, by_id)]
     if K.REQUEST_APPROVAL in running:
         _move(task_id, S.AWAITING_APPROVAL, "waiting for your approval")
+    elif K.CONFIRM_WITH_PROVIDER in running:
+        _move(task_id, S.WAITING_EXTERNAL, "waiting for the provider to confirm the booking")
     elif K.VERIFY in running or any(s.kind == K.SUMMARIZE for s in ready):
         _move(task_id, S.VERIFYING, "verifying booking evidence")
     elif running and running <= {K.AWAIT_REPLY} and not ready:
@@ -450,6 +453,90 @@ async def _request_approval(task: Task, step: PlanStep) -> Outcome:
     return Outcome("skipped", error=why, replan=f"approval withdrawn: {why}")
 
 
+# Provider's answer to "Reply YES to confirm". Anything else is a normal message (extracted as usual).
+CONFIRM_YES = re.compile(r"^\W*(yes|yep|yeah|y|confirm(ed)?|ok(ay)?|sure|sounds good)\b", re.I)
+CONFIRM_NO = re.compile(r"^\W*(no|nope|n|decline[d]?|can'?t|cannot)\b", re.I)
+
+
+def confirm_answer(text: str) -> str | None:
+    if CONFIRM_YES.match(text):
+        return "yes"
+    if CONFIRM_NO.match(text):
+        return "no"
+    return None
+
+
+async def _confirm_with_provider(task: Task, step: PlanStep) -> Outcome:
+    """Text the provider the terms the user approved; succeed only on their YES (ORBIT_PROVIDER_CONFIRM)."""
+    a = repo.get_latest_approval(task.id)
+    asked = (step.result or {}).get("approval_id")
+    if a is None or a.status != "approved" or (asked and asked != a.id):
+        why = "the approval changed while waiting for the provider" if asked else "no approved proposal"
+        return Outcome("skipped", error=why, replan=f"provider confirmation stopped: {why}")
+    p = a.proposal
+    provider = repo.get_provider(task.id, p.provider_id)
+    if asked is None:
+        step = planner.bind_step(step, provider_id=p.provider_id, proposal_hash=a.proposal_hash)
+        repo.save_step(step)
+        key = step.idempotency_key
+        prior = repo.get_action_by_key(key)
+        if prior is not None and prior.status in ("succeeded", "started", "ambiguous"):
+            sent_at = prior.started_at                 # may already have gone out: never resend
+        else:
+            text = (f"Orbit here: your customer approved {_local(p.slot_start, task.constraints.timezone)} "
+                    f"for {_usd(p.visit_charge_cents)} (ref {planner.orbit_ref(key)}). "
+                    "Reply YES to confirm and Orbit will book it, or NO if that no longer works.")
+            m = registry.messaging()
+            action = _start_action(task.id, step, m.name, "send", key,
+                                   {"provider_id": p.provider_id, "kind": "provider_confirm",
+                                    "text": text}, prior)
+            try:
+                r = await m.send(task.id, provider, text, key)
+                error = r.error if r.status == "failed" else None
+            except Exception as e:  # noqa: BLE001 — adapter boundary
+                r, error = None, f"{type(e).__name__}: {e}"
+            if error is not None:
+                _finish_action(action, "failed", result={"error": error})
+                return Outcome("failed", error=error, retryable=True,
+                               question=f"Orbit couldn't text {provider.name} to confirm ({error}). "
+                                        "Try again, or stop?")
+            _finish_action(action, "succeeded", result={"status": r.status, "provider_ref": r.provider_ref},
+                           provider_ref=r.provider_ref, evidence_ids=r.evidence_ids)
+            repo.emit(task.id, "message.sent", f"Asked {provider.name} to confirm the booking"
+                      + (" (fixture)" if m.is_fixture else ""),
+                      {"provider_id": p.provider_id, "step_id": step.id, "action_id": action.id,
+                       "text": text, "claim_level": "message_delivered" if r.status == "delivered"
+                       else "message_submitted", "evidence_ids": r.evidence_ids,
+                       "is_fixture": m.is_fixture})
+            sent_at = action.started_at
+        return Outcome("waiting", result={"approval_id": a.id, "sent_at": _iso(sent_at),
+                                          "waiting_since": _iso(utcnow())})
+
+    since = datetime.fromisoformat(step.result["sent_at"])
+    for ev in sorted(repo.list_inbound(task.id, p.provider_id), key=lambda e: e.received_at):
+        answer = confirm_answer(ev.text) if ev.received_at >= since else None
+        if answer is None:
+            continue
+        repo.mark_inbound_processed(ev.id)
+        if answer == "yes":
+            repo.emit(task.id, "provider.confirmed", f"{provider.name} confirmed the booking",
+                      {"provider_id": p.provider_id, "inbound_id": ev.id, "approval_id": a.id})
+            return _ok({**step.result, "inbound_id": ev.id})
+        repo.invalidate_approvals(task.id, f"{provider.name} declined the approved booking")
+        return Outcome("failed", error=f"{provider.name} said no", code="step_failed",
+                       question=f"{provider.name} said no to the booking. Try again, or stop?")
+    waiting_since = step.result.get("waiting_since")
+    if waiting_since is None:                  # retried after a timeout: wait a full period again
+        return Outcome("waiting", result={"waiting_since": _iso(utcnow())})
+    if utcnow() - datetime.fromisoformat(waiting_since) > timedelta(seconds=task.limits.reply_timeout_s):
+        repo.save_step(step.model_copy(update={"result": {k: v for k, v in step.result.items()
+                                                          if k != "waiting_since"}}))
+        return Outcome("failed", error=f"no confirmation within {task.limits.reply_timeout_s}s",
+                       question=f"{provider.name} hasn't confirmed the booking. Try again to keep "
+                                "waiting, or stop?")
+    return Outcome("waiting")
+
+
 async def _submit_booking(task: Task, step: PlanStep) -> Outcome:
     # Pre-flight (A6/A7): book only what the user approved, and only if it's still current.
     a = repo.get_latest_approval(task.id)
@@ -721,6 +808,7 @@ EXECUTORS: dict[K, Callable[[Task, PlanStep], Awaitable[Outcome]]] = {
     K.COMPARE_QUOTES: _compare_quotes,
     K.READ_AVAILABILITY: _read_availability,
     K.REQUEST_APPROVAL: _request_approval,
+    K.CONFIRM_WITH_PROVIDER: _confirm_with_provider,
     K.SUBMIT_BOOKING: _submit_booking,
     K.RECONCILE_BOOKING: _reconcile_booking,
     K.VERIFY: _verify,
@@ -821,6 +909,8 @@ async def _process_inbound(task_id: str) -> bool:
         return False
     steps = repo.list_steps(task_id)
     open_extract = {s.provider_id for s in _active(steps) if s.kind == K.EXTRACT_QUOTE}
+    confirming = {s.provider_id for s in _active(steps)
+                  if s.kind == K.CONFIRM_WITH_PROVIDER and s.state == StepState.RUNNING}
     changed = False
     now = utcnow()
     for ev in pending:
@@ -830,6 +920,9 @@ async def _process_inbound(task_id: str) -> bool:
             continue
         if pid in open_extract:
             continue                         # its extract_quote step will consume it
+        if pid in confirming and confirm_answer(ev.text):
+            repo.mark_inbound_processed(ev.id)
+            continue                         # a YES/NO to Orbit's confirmation text, not new terms
         retry_at = ev.payload.get("extract_retry_at")
         if retry_at and datetime.fromisoformat(retry_at) > now:
             continue
@@ -961,7 +1054,7 @@ def _block_for_budget(task_id: str, why: str) -> None:
 
 
 # ---------------------------------------------------------------- reports to the user (G4)
-REPORTABLE = {"approval.requested", "question.asked", "task.completed"}
+REPORTABLE = {"task.created_from_text", "approval.requested", "question.asked", "task.completed"}
 
 
 def _report_text(task: Task, ev) -> str:
@@ -972,8 +1065,10 @@ def _report_text(task: Task, ev) -> str:
                 f"{_local(datetime.fromisoformat(p['slot_start']), task.constraints.timezone)} "
                 f"for {_usd(p['visit_charge_cents'])}. Approve or decline in Orbit.")
         if get_settings().orbit_text_approvals:
-            text += f" Or reply YES {h8} / NO {h8}."
+            text += " Or reply YES to approve / NO to decline."
         return text
+    if ev.type == "task.created_from_text":
+        return ev.data["report"]
     if ev.type == "question.asked":
         return f"Orbit needs you: {ev.data['question']}"
     return f"Orbit: handled ✓ {ev.data.get('summary', '')}".strip()
@@ -1015,8 +1110,8 @@ async def _send_reports(task_id: str) -> None:
             continue
         _finish_action(action, "succeeded", result=r.model_dump(mode="json"),
                        provider_ref=r.provider_ref, evidence_ids=r.evidence_ids)
-        what = {"approval.requested": "approval request", "question.asked": "question",
-                "task.completed": "completion summary"}[ev.type]
+        what = {"task.created_from_text": "acknowledgement", "approval.requested": "approval request",
+                "question.asked": "question", "task.completed": "completion summary"}[ev.type]
         repo.emit(task_id, "report.sent", f"Texted you the {what}"
                   + (" (fixture)" if m.is_fixture else ""),
                   {"event_id": ev.id, "kind": ev.type, "evidence_ids": r.evidence_ids,

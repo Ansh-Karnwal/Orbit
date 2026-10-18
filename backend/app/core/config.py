@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     orbit_auth_mode: Literal["demo", "required"] = "demo"
     # Let the task owner approve/decline by texting "YES <hash8>" / "NO <hash8>". Off by default.
     orbit_text_approvals: bool = False
+    # A text from LIVE_USER_HANDLE with no active task starts one (seeded constraints, live providers).
+    orbit_text_intake: bool = False
+    # After the user approves, text the provider the approved terms and book only once they reply YES.
+    orbit_provider_confirm: bool = False
     database_url: str = "sqlite:///./orbit.db"
     artifact_dir: str = "./artifacts"
 

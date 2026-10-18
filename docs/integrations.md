@@ -75,6 +75,19 @@ Start the portal with `PORTAL_CATALOGUE=providers.live.yaml`. In that price list
 
 Bayside goes over the $150 budget, so Orbit proposes Ace. Browser Use books Ace's 3–4pm slot, and the review page matches the approved $120. The fixture story (Ace's hidden $70 trip charge) still uses `providers.yaml`.
 
+### Text-only flow (user and provider both on iMessage)
+Set `LIVE_USER_HANDLE` (the user's number), `LIVE_PROVIDER_A_HANDLE` (Ace), leave `LIVE_PROVIDER_B_HANDLE` empty, and turn on `ORBIT_TEXT_INTAKE=1`, `ORBIT_TEXT_APPROVALS=1` and `ORBIT_PROVIDER_CONFIRM=1`. Restart the backend after changing them. Start the portal with `PORTAL_CATALOGUE=providers.live.yaml`.
+
+1. Before the demo, cancel any active task that lists one of these numbers as a provider. Texts are routed to provider tasks first.
+2. Ace texts the Orbit line once (shared-line rule).
+3. The user texts: `My dishwasher needs a visit. Tuesday afternoon works. Keep it under $150, and ask me before booking.` This starts a task. The service and the next-Tuesday 2–5 pm window come from `demo/seed.json`, and a `$N` in the text sets the budget. Only providers with a live handle are contacted. Orbit replies "on it".
+4. Orbit texts Ace the inquiry. Ace replies with the one-text script above.
+5. Orbit texts the user the proposal. The user replies `YES` (or `NO`). A plain YES only counts for the approval Orbit actually texted to that number.
+6. Orbit texts Ace the approved terms: "Reply YES to confirm". Ace replies `YES`, and only then does Browser Use book on the portal. A `NO` withdraws the approval and asks the user what to do. No reply within `reply_timeout_s` asks the user too.
+7. Orbit verifies the portal confirmation and texts the user "handled ✓".
+
+A text from the user number only starts a task if it reads like a request (it mentions a dishwasher, washer, appliance, repair, fix or visit), so "thanks!" after a booking doesn't start a new one.
+
 ### Limits
 - 5 req/s per project on the management API (https://photon.codes/docs/api-reference/rate-limit).
 - 50 new conversations per line per day (https://photon.codes/docs/spectrum-ts/providers/imessage/connection-and-routing).

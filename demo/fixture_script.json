@@ -1,5 +1,10 @@
 {
-  "_note": "Owner: Ansh. Scripted provider replies for FixtureMessagingAdapter (contract §3.9). after_s is seconds after Orbit's first inquiry to that provider. on_inquiry replies fire once per (task, provider); auto_followup replies fire only when FIXTURE_AUTO_FOLLOWUPS=1 (otherwise the presenter injects them via POST /demo/inject-event). Keys are a provider id (the dishwasher story) or '<provider id>@<service id>' for other services. Prices match portal/providers.yaml so a booking can verify.",
+  "_note": "Owner: Ansh. Scripted provider replies for FixtureMessagingAdapter (contract §3.9). after_s is seconds after Orbit's first inquiry to that provider. on_inquiry replies fire once per (task, provider); auto_followup replies fire only when FIXTURE_AUTO_FOLLOWUPS=1 (otherwise the presenter injects them via POST /demo/inject-event). Keys are a provider id (the dishwasher story) or '<provider id>@<service id>' for other services. Prices match portal/providers.yaml so a booking can verify. provider_confirm answers Orbit's 'Reply YES to confirm' text (ORBIT_PROVIDER_CONFIRM=1).",
+  "provider_confirm": {
+    "after_s": 2,
+    "trigger": "provider_confirm",
+    "text": "Yes, confirmed. See you then."
+  },
   "provider_a": [
     {
       "after_s": 2,

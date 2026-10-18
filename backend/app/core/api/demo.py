@@ -59,10 +59,17 @@ def _spec(p: dict, mode: Mode) -> ProviderSpec:
                         portal_url=settings.portal_base_url.rstrip("/") + p["portal_path"])
 
 
+def _specs(raw: list[dict], mode: Mode) -> list[ProviderSpec]:
+    """Live mode lists only providers with a consenting live handle (LIVE_PROVIDER_*_HANDLE set):
+    one without a number could never be messaged and would block the task."""
+    specs = [_spec(p, mode) for p in raw]
+    return [s for s in specs if s.channel != "fixture"] if mode == "live" else specs
+
+
 def sandbox_providers(mode: Mode = "fixture") -> list[ProviderSpec]:
     """Every provider the sandbox knows (canonical two + extras), for intake's add-provider."""
     seed = _load_seed()
-    return [_spec(p, mode) for p in seed["providers"] + seed.get("extra_providers", [])]
+    return _specs(seed["providers"] + seed.get("extra_providers", []), mode)
 
 
 def resolve_seed(mode: Mode = "fixture", now: datetime | None = None,
@@ -90,9 +97,11 @@ def resolve_seed(mode: Mode = "fixture", now: datetime | None = None,
             timezone=seed["timezone"],
             max_visit_charge_cents=seed["max_visit_charge_cents"],
         ),
-        providers=[_spec(p, mode) for p in raw],
+        providers=_specs(raw, mode),
         mode=mode,
         source="demo_seed",
+        # Live: Orbit texts approvals and updates to the demo user's own number.
+        user_contact=(get_settings().live_user_handle or None) if mode == "live" else None,
     )
 
 

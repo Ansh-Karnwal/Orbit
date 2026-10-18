@@ -18,6 +18,7 @@ export type StepKind =
   | "compare_quotes"
   | "read_availability"
   | "request_approval"
+  | "confirm_with_provider"
   | "submit_booking"
   | "reconcile_booking"
   | "verify"

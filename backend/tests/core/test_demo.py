@@ -84,7 +84,8 @@ def test_reset_live_without_handles_is_422(portal, monkeypatch):
     _seeded_task()
     r = client.post("/demo/reset", json={"create_task": True, "mode": "live"})
     assert r.status_code == 422
-    assert any("live mode needs a real messaging handle" in d["msg"] for d in r.json()["detail"])
+    # Live seeds list only providers with a live handle, so none are left to contact.
+    assert any("at least one provider is required" in d["msg"] for d in r.json()["detail"])
     assert len(client.get("/tasks").json()) == 1         # validation happens before wiping
 
 

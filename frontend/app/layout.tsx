@@ -11,9 +11,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    // Extensions (e.g. Grammarly) add attributes to <html> before hydration; this only silences that element.
+    // Extensions (e.g. Grammarly) add attributes to <html>/<body> before hydration; this only silences those two elements.
     <html lang="en" suppressHydrationWarning>
-      <body>
+      <body suppressHydrationWarning>
         <a className="skip-link" href="#main">
           Skip to content
         </a>

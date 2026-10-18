@@ -52,10 +52,20 @@ class FixtureMessagingAdapter:
             claim_level=ClaimLevel.MESSAGE_SUBMITTED, provider_ref=provider_ref)
         result = SendResult(provider_ref=provider_ref, status="delivered", evidence_ids=[ev.id])
         self._sent[idempotency_key] = result
-        if (task_id, provider.id) not in self._scripted:
+        if ":confirm_with_provider:" in idempotency_key:
+            self._schedule_confirm(task_id, provider)
+        elif (task_id, provider.id) not in self._scripted:
             self._scripted.add((task_id, provider.id))
             self._schedule_replies(task_id, provider)
         return result
+
+    def _schedule_confirm(self, task_id: str, provider: ProviderSpec) -> None:
+        """Orbit asked the provider to confirm an approved booking (ORBIT_PROVIDER_CONFIRM): say yes."""
+        entry = {**self.script.get("provider_confirm", {"after_s": 2, "text": "Yes, confirmed."}),
+                 "trigger": "provider_confirm"}
+        t = asyncio.create_task(self._reply_later(task_id, provider, "confirm", entry))
+        self._pending.add(t)
+        t.add_done_callback(self._pending.discard)
 
     def _script_for(self, task_id: str, provider: ProviderSpec) -> list[dict[str, Any]]:
         """Replies keyed '<provider>@<service>' for non-default services, else '<provider>'."""
@@ -78,7 +88,7 @@ class FixtureMessagingAdapter:
             self._pending.add(t)
             t.add_done_callback(self._pending.discard)
 
-    async def _reply_later(self, task_id: str, provider: ProviderSpec, n: int,
+    async def _reply_later(self, task_id: str, provider: ProviderSpec, n: int | str,
                            entry: dict[str, Any]) -> None:
         delay = float(entry.get("after_s", 0)) * self.time_scale
         if self.reply_delay_s is not None and entry.get("trigger", "on_inquiry") == "on_inquiry":

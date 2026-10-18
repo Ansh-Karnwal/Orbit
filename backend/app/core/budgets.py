@@ -11,7 +11,7 @@ from app.core import repo
 from app.core.schemas import StepKind as K, utcnow
 
 # Upper bound on ToolAction rows a step of each kind can create in one attempt.
-ACTION_COST = {K.SEND_INQUIRY: 1, K.READ_AVAILABILITY: 1, K.SUBMIT_BOOKING: 1,
+ACTION_COST = {K.SEND_INQUIRY: 1, K.READ_AVAILABILITY: 1, K.SUBMIT_BOOKING: 1, K.CONFIRM_WITH_PROVIDER: 1,
                K.RECONCILE_BOOKING: 3}         # find + (recheck | resubmit)
 LLM_KINDS = {K.EXTRACT_QUOTE, K.VERIFY, K.SUMMARIZE}
 

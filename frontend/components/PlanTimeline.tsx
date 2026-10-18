@@ -18,6 +18,7 @@ const names: Record<string, string> = {
   compare_quotes: "Compare your options",
   read_availability: "Check available appointments",
   request_approval: "Get your approval",
+  confirm_with_provider: "Provider confirms",
   submit_booking: "Submit booking request",
   reconcile_booking: "Check existing booking",
   verify: "Verify the result",

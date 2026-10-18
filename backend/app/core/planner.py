@@ -3,6 +3,7 @@
 Procedure (home_repair v1), per provider p:
     send_inquiry(p) -> await_reply(p) -> extract_quote(p)
 then: compare_quotes -> read_availability -> request_approval -> submit_booking -> verify -> summarize
+(with ORBIT_PROVIDER_CONFIRM=1, confirm_with_provider runs between request_approval and submit_booking)
 
 The tail is late-bound: compare_quotes picks the provider at run time, and submit_booking's key
 is bound to the approved proposal hash. The coordinator calls bind_step() before executing.
@@ -15,6 +16,7 @@ import hashlib
 from app.context.domain import load_pack
 from app.context.proposals import best_proposal, eligibility
 from app.core import questions, repo
+from app.core.config import get_settings
 from app.core.schemas import PlanStep, StepKind as K, StepState, new_id, utcnow
 
 QUOTE_KINDS = {K.SEND_INQUIRY, K.AWAIT_REPLY, K.EXTRACT_QUOTE}
@@ -31,8 +33,8 @@ def step_key(task_id: str, kind: K, provider_id: str | None = None, plan_version
         if followup_n is not None:
             return f"{task_id}:followup:{provider_id}:{followup_n}"
         return f"{task_id}:send_inquiry:{provider_id}"          # never plan-versioned
-    if kind == K.SUBMIT_BOOKING and proposal_hash:
-        return f"{task_id}:submit_booking:{proposal_hash[:16]}"
+    if kind in (K.SUBMIT_BOOKING, K.CONFIRM_WITH_PROVIDER) and proposal_hash:
+        return f"{task_id}:{kind.value}:{proposal_hash[:16]}"
     return f"{task_id}:{kind.value}:{provider_id or '-'}:v{plan_version}"
 
 
@@ -78,9 +80,16 @@ def _quote_chain(task_id: str, pv: int, provider_id: str,
     return [send, wait, extract]
 
 
+def tail_kinds() -> list[K]:
+    if not get_settings().orbit_provider_confirm:
+        return TAIL
+    i = TAIL.index(K.REQUEST_APPROVAL) + 1
+    return TAIL[:i] + [K.CONFIRM_WITH_PROVIDER] + TAIL[i:]
+
+
 def _decision_chain(task_id: str, pv: int, compare_deps: list[str]) -> list[PlanStep]:
     steps = [new_step(task_id, K.COMPARE_QUOTES, pv, depends_on=compare_deps)]
-    for kind in TAIL:
+    for kind in tail_kinds():
         steps.append(new_step(task_id, kind, pv, depends_on=[steps[-1].id]))
     return steps
 

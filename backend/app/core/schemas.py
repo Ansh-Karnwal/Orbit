@@ -50,6 +50,7 @@ class StepKind(str, Enum):
     COMPARE_QUOTES = "compare_quotes"
     READ_AVAILABILITY = "read_availability"
     REQUEST_APPROVAL = "request_approval"
+    CONFIRM_WITH_PROVIDER = "confirm_with_provider"     # only with ORBIT_PROVIDER_CONFIRM=1
     SUBMIT_BOOKING = "submit_booking"
     RECONCILE_BOOKING = "reconcile_booking"
     VERIFY = "verify"

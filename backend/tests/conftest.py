@@ -9,9 +9,10 @@ import os
 if not os.environ.get("RUN_LIVE"):
     os.environ.update({"ORBIT_MODE": "fixture", "MESSAGING_MODE": "fixture", "BROWSER_MODE": "fixture",
                        "LLM_MODE": "fixture", "LLM_PROVIDER": "anthropic", "LLM_MODEL": "",
-                       "SENTRY_DSN": ""})
+                       "SENTRY_DSN": "", "ORBIT_TEXT_INTAKE": "0", "ORBIT_TEXT_APPROVALS": "0",
+                       "ORBIT_PROVIDER_CONFIRM": "0"})
     for _key in ("BROWSER_USE_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "PHOTON_API_KEY", "PHOTON_PROJECT_ID",
-                 "LIVE_PROVIDER_A_HANDLE", "LIVE_PROVIDER_B_HANDLE"):
+                 "LIVE_PROVIDER_A_HANDLE", "LIVE_PROVIDER_B_HANDLE", "LIVE_USER_HANDLE"):
         os.environ[_key] = ""
 
 import pytest  # noqa: E402
