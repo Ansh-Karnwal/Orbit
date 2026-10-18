@@ -1,4 +1,5 @@
 PyYAML==6.0.2
 anthropic==1.15.0
 
-openai==2.26.0
+# Keep aligned with browser-use==0.13.11's exact SDK requirement.
+google-genai==1.65.0

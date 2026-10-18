@@ -29,12 +29,13 @@ def test_live_without_config_reports_blocked(monkeypatch):
     assert status().startswith("blocked:")
 
 
-def test_client_honors_shared_dotenv_configuration(monkeypatch, tmp_path):
+@pytest.mark.parametrize("provider,key", [("anthropic", "ANTHROPIC_API_KEY"), ("gemini", "GEMINI_API_KEY")])
+def test_client_honors_shared_dotenv_configuration(monkeypatch, tmp_path, provider, key):
     from app.core.config import get_settings
     from app.llm import client
-    for name in ("LLM_MODE", "LLM_PROVIDER", "LLM_MODEL", "ANTHROPIC_API_KEY"):
+    for name in ("LLM_MODE", "LLM_PROVIDER", "LLM_MODEL", key):
         monkeypatch.delenv(name, raising=False)
-    (tmp_path / ".env").write_text("LLM_MODE=live\nLLM_PROVIDER=anthropic\nLLM_MODEL=test-model\nANTHROPIC_API_KEY=test-only\n")
+    (tmp_path / ".env").write_text(f"LLM_MODE=live\nLLM_PROVIDER={provider}\nLLM_MODEL=test-model\n{key}=test-only\n")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(client, "find_spec", lambda name: object())
     get_settings.cache_clear()

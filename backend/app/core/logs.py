@@ -13,6 +13,7 @@ _REDACTIONS = [
     (re.compile(r"\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b"), "[phone]"),
     (re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+"), "[email]"),
     (re.compile(r"\b(sk|pk|bu|key|tok)[-_][A-Za-z0-9_-]{8,}"), "[secret]"),
+    (re.compile(r"\bAIza[A-Za-z0-9_-]{35}(?![A-Za-z0-9_-])"), "[secret]"),
     (re.compile(r"(?i)(authorization|api[-_]?key|x-api-key)(['\"]?\s*[:=]\s*)\S+"), r"\1\2[secret]"),
 ]
 _EXTRA_KEYS = ("event", "task_id", "step_id", "step_kind", "provider_id", "attempt", "mode",

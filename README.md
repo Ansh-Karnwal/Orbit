@@ -75,6 +75,8 @@ make dev
 
 Ports: frontend 3000, backend 8000, provider portal 8100. Root `.env` settings do not automatically populate Next.js; use `frontend/.env.local` or exported environment variables. Restart/rebuild the frontend after changing public variables. Do not put secrets in `NEXT_PUBLIC_*` values.
 
+Live message drafting and quote extraction use Gemini. Set `LLM_MODE=live`, `LLM_PROVIDER=gemini`, `LLM_MODEL=gemini-3.8-flash`, and `GEMINI_API_KEY` in the root `.env`, then restart the backend. Install `backend/requirements/context.txt` for the official Google Gen AI SDK. See [the local setup guide](docs/photon_local_setup.md#gemini-message-drafting-and-extraction). Fixture mode works without a model API key.
+
 ## Demonstrate the twist
 
 1. Start a fixture task. Wait for Ace's $120.00 approval card.
