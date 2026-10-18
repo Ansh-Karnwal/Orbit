@@ -7,14 +7,24 @@ import {
   Check,
   FileInput,
   LockKeyhole,
+  Plus,
+  X,
 } from "lucide-react";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, MOCK_SERVICES } from "@/lib/api";
 import { centsFromInput, localInput, localToUtc } from "@/lib/format";
 import { parseCreao, taskCreateSchema } from "@/lib/intake";
+import { providerAccent } from "@/lib/labels";
 import { LandingHero } from "./LandingHero";
-import type { Health, TaskCreate } from "@/lib/types";
+import type { Health, ProviderSpec, ServiceInfo, TaskCreate } from "@/lib/types";
+const MAX_PROVIDERS = 10;
 export default function Intake() {
   const router = useRouter();
+  const [providers, setProviders] = useState<ProviderSpec[]>([]),
+    [sandbox, setSandbox] = useState<ProviderSpec[]>([]),
+    [services, setServices] = useState<ServiceInfo[]>(MOCK_SERVICES),
+    [contact, setContact] = useState(""),
+    [newName, setNewName] = useState(""),
+    [newHandle, setNewHandle] = useState("");
   const [seed, setSeed] = useState<TaskCreate | null>(null),
     [health, setHealth] = useState<Health | null>(null),
     [outcome, setOutcome] = useState(""),
@@ -41,10 +51,49 @@ export default function Intake() {
     );
     setBudget(String(value.constraints.max_visit_charge_cents / 100));
     setMode(value.mode);
+    setProviders(value.providers);
+    setContact(value.user_contact ?? "");
+  }
+  async function changeService(next: string) {
+    setService(next);
+    try {
+      // Follow the seed's wording for the new service unless the outcome was edited.
+      const s = await api.seed({ service: next });
+      if (!seed || outcome === seed.outcome_text) setOutcome(s.outcome_text);
+      setSeed((prev) => (prev ? { ...prev, outcome_text: s.outcome_text } : s));
+    } catch {
+      /* keep the current wording */
+    }
+  }
+  function addProvider(p: ProviderSpec) {
+    setProviders((cur) =>
+      cur.length >= MAX_PROVIDERS || cur.some((x) => x.id === p.id)
+        ? cur
+        : [...cur, p],
+    );
+  }
+  function addCustomProvider() {
+    const name = newName.trim(),
+      handle = newHandle.trim();
+    if (!name || !handle) return;
+    const id = `custom_${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`.slice(0, 40);
+    addProvider({
+      id,
+      name,
+      handle,
+      channel: handle.startsWith("fixture:") ? "fixture" : "imessage",
+      portal_url: null,
+    });
+    setNewName("");
+    setNewHandle("");
   }
   useEffect(() => {
     let active = true;
-    void Promise.all([api.seed(), api.health()])
+    const wanted =
+      typeof window !== "undefined"
+        ? (new URLSearchParams(window.location.search).get("service") ?? undefined)
+        : undefined;
+    void Promise.all([api.seed({ service: wanted }), api.health()])
       .then(([s, h]) => {
         if (active) {
           fill(s);
@@ -57,6 +106,14 @@ export default function Intake() {
             e instanceof Error ? e.message : "Could not load the demo seed",
           );
       });
+    void api
+      .services()
+      .then((s) => active && s.length && setServices(s))
+      .catch(() => undefined);
+    void api
+      .sandboxProviders()
+      .then((s) => active && setSandbox(s))
+      .catch(() => undefined);
     return () => {
       active = false;
     };
@@ -65,9 +122,11 @@ export default function Intake() {
     health?.ok &&
     health.integrations.photon === "live" &&
     health.integrations.browser_use === "live" &&
-    seed?.providers.every(
+    providers.length > 0 &&
+    providers.every(
       (p) => p.channel !== "fixture" && !p.handle.startsWith("fixture:"),
     );
+  const addable = sandbox.filter((p) => !providers.some((x) => x.id === p.id));
   const zone = seed?.constraints.timezone ?? "America/Los_Angeles";
   const fieldError = (key: string) =>
     fields[key] ? (
@@ -114,6 +173,8 @@ export default function Intake() {
           window_end,
           max_visit_charge_cents: cents,
         },
+        providers,
+        user_contact: contact.trim() || null,
         mode,
         source: imported ? "creao" : "manual",
       });
@@ -212,11 +273,13 @@ export default function Intake() {
                     Service category
                     <select
                       value={service}
-                      onChange={(e) => setService(e.target.value)}
+                      onChange={(e) => void changeService(e.target.value)}
                     >
-                      <option value="dishwasher_repair">
-                        Dishwasher repair
-                      </option>
+                      {services.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.label}
+                        </option>
+                      ))}
                     </select>
                     {fieldError("constraints.service")}
                   </label>
@@ -260,20 +323,87 @@ export default function Intake() {
                   <span>You approve the provider and terms before booking.</span>
                 </div>
                 <div>
-                  <p className="field-title">Candidate Providers</p>
+                  <p className="field-title">
+                    Candidate providers{" "}
+                    <span className="muted">
+                      ({providers.length}/{MAX_PROVIDERS})
+                    </span>
+                  </p>
                   <div className="provider-pill-list">
-                    {seed.providers.map((p) => (
+                    {providers.map((p, i) => (
                       <div key={p.id} className="provider-pill-item">
-                        <span className="provider-initial">
+                        <span className={`provider-initial ${providerAccent(i)}`}>
                           {p.name.charAt(0)}
                         </span>
                         <span className="provider-name">{p.name}</span>
-                        <span className="provider-mode-dot" />
+                        <button
+                          type="button"
+                          className="pill-remove"
+                          aria-label={`Remove ${p.name}`}
+                          disabled={providers.length <= 1}
+                          onClick={() =>
+                            setProviders((cur) => cur.filter((x) => x.id !== p.id))
+                          }
+                        >
+                          <X size={12} />
+                        </button>
                       </div>
                     ))}
                   </div>
+                  {providers.length < MAX_PROVIDERS && (
+                    <div className="provider-add stack">
+                      {addable.length > 0 && (
+                        <div className="row wrap">
+                          {addable.map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              className="button small"
+                              onClick={() => addProvider(p)}
+                            >
+                              <Plus size={13} />
+                              {p.name}
+                              <span className="muted"> (sandbox)</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <div className="row wrap provider-custom">
+                        <input
+                          aria-label="New provider name"
+                          placeholder="Provider name"
+                          value={newName}
+                          onChange={(e) => setNewName(e.target.value)}
+                        />
+                        <input
+                          aria-label="New provider handle"
+                          placeholder="Handle (fixture:id or phone)"
+                          value={newHandle}
+                          onChange={(e) => setNewHandle(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          className="button small"
+                          disabled={!newName.trim() || !newHandle.trim()}
+                          onClick={addCustomProvider}
+                        >
+                          <Plus size={13} />
+                          Add
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {fieldError("providers")}
                 </div>
+                <label className="field">
+                  Text me updates at <span className="muted">(optional)</span>
+                  <input
+                    value={contact}
+                    onChange={(e) => setContact(e.target.value)}
+                    placeholder="fixture:you in the sandbox, or your phone for live"
+                  />
+                  {fieldError("user_contact")}
+                </label>
                 <div className="row between wrap mode-row">
                   <div className="mode-toggle">
                     <label className={`mode-btn ${mode === "fixture" ? "active" : ""}`}>

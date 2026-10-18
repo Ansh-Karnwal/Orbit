@@ -19,7 +19,9 @@ export default function DemoPanel({
   const [last, setLast] = useState<DemoInjectIn | null>(null);
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
-    [fault, setFault] = useState<PortalFaultIn["mode"]>("none");
+    [fault, setFault] = useState<PortalFaultIn["mode"]>("none"),
+    [target, setTarget] = useState(view.providers[0]?.id ?? "provider_a"),
+    [customText, setCustomText] = useState("");
   const act = useCallback(async (action: () => Promise<void>) => {
     if (lock.current) return;
     lock.current = true;
@@ -51,6 +53,24 @@ export default function DemoPanel({
         );
       }),
     [act, onRefresh, view.task.id],
+  );
+  const injectCustom = useCallback(
+    () =>
+      act(async () => {
+        if (!customText.trim()) throw new Error("Type the provider's message first.");
+        const body = {
+          task_id: view.task.id,
+          provider_id: target,
+          text: customText.trim(),
+          external_id: `demo_msg_${crypto.randomUUID()}`,
+        };
+        await api.inject(body);
+        setLast(body);
+        await onRefresh();
+        const name = view.providers.find((p) => p.id === target)?.name ?? target;
+        setMessage(`Message from ${name} injected.`);
+      }),
+    [act, customText, onRefresh, target, view.providers, view.task.id],
   );
   const reset = useCallback(
     () =>
@@ -128,6 +148,43 @@ export default function DemoPanel({
           Reset demo <kbd>⇧ R</kbd>
         </button>
       </div>
+      {!USE_MOCKS && (
+        <div className="demo-custom stack">
+          <div className="grid-two">
+            <label className="field">
+              A provider replies
+              <select
+                value={target}
+                disabled={busy}
+                onChange={(e) => setTarget(e.target.value)}
+              >
+                {view.providers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              Their message
+              <input
+                value={customText}
+                disabled={busy}
+                placeholder="e.g. Diagnostic visit is $140 including travel. Tuesday 4–5pm."
+                onChange={(e) => setCustomText(e.target.value)}
+              />
+            </label>
+          </div>
+          <button
+            className="button"
+            disabled={busy || !customText.trim()}
+            onClick={() => void injectCustom()}
+          >
+            <Zap size={15} />
+            Inject this message
+          </button>
+        </div>
+      )}
       <label className="field">
         Portal fault (set before approving Bayside)
         <select

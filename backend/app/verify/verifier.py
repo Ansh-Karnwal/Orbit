@@ -86,7 +86,7 @@ async def verify(task_id: str) -> VerificationResult:
     explanation = _template(verdict, predicates)
     try:
         result = await structured(Explanation,
-            system=(Path(__file__).parents[1] / "llm/prompts/verify.txt").read_text(),
+            system=(Path(__file__).parents[1] / "llm/prompts/verify.txt").read_text(encoding="utf-8"),
             instructions=f"Explain deterministic verdict {verdict.value}; include that verdict verbatim. Use at most three sentences.",
             untrusted=[p.model_dump_json() for p in predicates], task_id=task_id)
         text = result.text.strip()

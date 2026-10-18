@@ -57,8 +57,21 @@ class FixtureMessagingAdapter:
             self._schedule_replies(task_id, provider)
         return result
 
+    def _script_for(self, task_id: str, provider: ProviderSpec) -> list[dict[str, Any]]:
+        """Replies keyed '<provider>@<service>' for non-default services, else '<provider>'."""
+        try:
+            from app.core import repo
+            service = repo.get_task(task_id).constraints.service
+        except Exception:  # noqa: BLE001 — unit tests may use bare task ids
+            service = None
+        if service and f"{provider.id}@{service}" in self.script:
+            return self.script[f"{provider.id}@{service}"]
+        if service not in (None, "dishwasher_repair"):
+            return []                    # never answer a washer job with a dishwasher quote
+        return self.script.get(provider.id, [])
+
     def _schedule_replies(self, task_id: str, provider: ProviderSpec) -> None:
-        for n, entry in enumerate(self.script.get(provider.id, []), start=1):
+        for n, entry in enumerate(self._script_for(task_id, provider), start=1):
             if entry.get("trigger", "on_inquiry") == "auto_followup" and not self.auto_followups:
                 continue
             t = asyncio.create_task(self._reply_later(task_id, provider, n, entry))

@@ -10,11 +10,11 @@ def _normalize(key: str, value):
     field = key.rsplit(".", 1)[-1]
     if field.endswith("_cents"):
         return cents(value)
-    if field in {"slots_offered", "portal_slots"}:
+    if field in {"slots_offered", "portal_slots", "declined_slots"}:
         return normalize_slots(value)
     if field == "extra_fees":
         return sorted([{"name": str(x["name"]).strip(), "cents": cents(x["cents"])} for x in value], key=lambda x: (x["name"], x["cents"]))
-    if field in {"service_supported", "repair_cost_known", "no_reply"} and not isinstance(value, bool):
+    if field in {"service_supported", "repair_cost_known", "no_reply", "declined_by_user"} and not isinstance(value, bool):
         raise ValueError(f"{field} must be boolean")
     return value.strip() if isinstance(value, str) else value
 

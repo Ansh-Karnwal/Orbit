@@ -6,8 +6,9 @@ from typing import Callable, TypeVar
 
 from app.adapters import registry
 from app.context import proposals as ctx_proposals
-from app.core import repo
-from app.core.schemas import TERMINAL_STATUSES, Proposal, TaskView
+from app.context import summary as ctx_summary
+from app.core import questions, repo
+from app.core.schemas import TERMINAL_STATUSES, Proposal, TaskStatus, TaskView
 
 log = logging.getLogger("orbit.api")
 
@@ -51,4 +52,9 @@ def build_view(task_id: str) -> TaskView:
         verification=repo.latest_verification(task_id),
         timeline=repo.list_timeline(task_id, last=TIMELINE_LIMIT),
         integrations=_safe(registry.integration_status, {}, "integration_status"),
+        provider_summaries=_safe(lambda: ctx_summary.provider_summaries(task_id), {},
+                                 "provider_summaries"),
+        # Tied to the status read above, so a snapshot never shows a question on a non-blocked task.
+        open_question=(questions.open_question(task_id)
+                       if task.status == TaskStatus.BLOCKED else None),
     )

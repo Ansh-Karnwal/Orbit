@@ -18,7 +18,9 @@ import { isComplete, safeWording } from "@/lib/format";
 import { OrbitLoop } from "./OrbitLoop";
 import { FixtureBanner, IntegrationChips } from "./FixtureBanner";
 import { ApprovalCard } from "./ApprovalCard";
-import { ProviderCard } from "./ProviderCard";
+import { ProviderGallery } from "./ProviderGallery";
+import { QuestionCard } from "./QuestionCard";
+import { serviceLabel, statusLabel } from "@/lib/labels";
 import { EvidenceDrawer, EvidenceList } from "./EvidenceDrawer";
 import { CompletionSummary, VerificationPanel } from "./VerificationPanel";
 import { Plan, Timeline } from "./PlanTimeline";
@@ -83,7 +85,8 @@ export default function TaskWorkspace({
       </main>
     );
   const tz = view.task.constraints.timezone,
-    verdict = view.verification?.verdict;
+    verdict = view.verification?.verdict,
+    service = serviceLabel(view.task.constraints.service);
   const requested = view.approvals.filter((a) => a.status === "requested"),
     past = view.approvals.filter((a) => a.status !== "requested");
   const finished = isComplete(view);
@@ -99,7 +102,7 @@ export default function TaskWorkspace({
             <ArrowLeft size={15} />
             <span>Outcomes</span>
             <ChevronRight size={13} />
-            <span className="current-crumb">Dishwasher repair</span>
+            <span className="current-crumb">{service}</span>
           </Link>
           <div className="row">
             <IntegrationChips view={view} />
@@ -107,7 +110,7 @@ export default function TaskWorkspace({
         </div>
         <div className="task-heading">
           <div>
-            <h1>Dishwasher repair</h1>
+            <h1>{service}</h1>
             <p className="outcome-line">
               {safeWording(view.task.outcome_text, verdict)}
             </p>
@@ -117,7 +120,13 @@ export default function TaskWorkspace({
               className={`badge status ${finished ? "green" : view.task.status === "FAILED" ? "red" : "amber"}`}
             >
               <span className="dot" />
-              {finished ? "Verified & complete" : statuses[view.task.status]}
+              {finished
+                ? "Verified & complete"
+                : statusLabel(
+                    view.task.status,
+                    view.task.reason_code,
+                    statuses[view.task.status],
+                  )}
             </span>
             <button
               className="refresh-button"
@@ -203,16 +212,7 @@ export default function TaskWorkspace({
                     {view.providers.length} providers
                   </span>
                 </div>
-                <div className="grid-two">
-                  {view.providers.map((provider) => (
-                    <ProviderCard
-                      key={provider.id}
-                      provider={provider}
-                      view={view}
-                      onEvidence={setEvidenceId}
-                    />
-                  ))}
-                </div>
+                <ProviderGallery view={view} onEvidence={setEvidenceId} />
               </section>
             )}
             {activeTab === "overview" &&
@@ -242,6 +242,14 @@ export default function TaskWorkspace({
           </div>
           <aside className="stack decision-column">
             <div className="decision-sticky">
+              {view.open_question && (
+                <QuestionCard
+                  key={view.open_question.question_id}
+                  view={view}
+                  question={view.open_question}
+                  onRefresh={refresh}
+                />
+              )}
               {requested.length ? (
                 requested.map((a) => (
                   <ApprovalCard
@@ -270,7 +278,7 @@ export default function TaskWorkspace({
                       onRefresh={refresh}
                     />
                   ))
-              ) : (
+              ) : view.open_question ? null : (
                 <section className="card next-decision">
                   <span className="decision-halo">
                     <LockKeyhole size={24} />

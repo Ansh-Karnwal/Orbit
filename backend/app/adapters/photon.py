@@ -131,8 +131,10 @@ class PhotonMessagingAdapter:
         if not isettings.photon_project_id.startswith("pho_prj_"):
             raise AdapterUnavailable("PHOTON_PROJECT_ID doesn't look like a Beta project "
                                      "(pho_prj_…); Stable/Spectrum credentials need a Node sidecar")
+        # Consenting teammate-providers, plus the demo user's own handle for Orbit's reports.
         self.allowed = {normalize_handle(h) for h in (settings.live_provider_a_handle,
-                                                      settings.live_provider_b_handle) if h}
+                                                      settings.live_provider_b_handle,
+                                                      settings.live_user_handle) if h}
         if not self.allowed:
             raise AdapterUnavailable("set LIVE_PROVIDER_A_HANDLE / LIVE_PROVIDER_B_HANDLE "
                                      "(consenting teammates only)")
@@ -157,7 +159,8 @@ class PhotonMessagingAdapter:
         if handle not in self.allowed:
             log.warning("photon refused send to non-provider handle %s", mask_handle(handle))
             return SendResult(status="failed", error="refused: recipient is not a configured "
-                              "consenting provider handle (LIVE_PROVIDER_*_HANDLE)")
+                              "consenting handle (LIVE_PROVIDER_*_HANDLE / LIVE_USER_HANDLE)",
+                              error_code="recipient_not_allowed")
         if idempotency_key in self._sent:
             return self._sent[idempotency_key]
         try:
@@ -165,7 +168,7 @@ class PhotonMessagingAdapter:
         except Exception as e:
             return SendResult(status="failed", error=f"photon lookup failed: {_err(e)}")
         if route is None:
-            return SendResult(status="failed", error=(
+            return SendResult(status="failed", error_code="must_text_first", error=(
                 f"shared iMessage line can't send first: provider {mask_handle(handle)} must "
                 "text the Orbit line once, then retry"))
         space_id, agent_id = route

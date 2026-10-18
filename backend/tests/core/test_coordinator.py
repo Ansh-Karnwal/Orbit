@@ -88,7 +88,7 @@ async def test_verification_fail_blocks_and_never_completes(task, env):
     _approve_latest(task.id)
     await ticks(task.id)
     t = repo.get_task(task.id)
-    assert t.status == S.BLOCKED and "verification failed" in t.status_reason
+    assert t.status == S.BLOCKED and t.reason_code == "verification_failed"
     assert repo.latest_verification(task.id).verdict == Verdict.FAIL
     assert "task.completed" not in types(task.id)
 
@@ -99,30 +99,43 @@ async def test_no_confirmation_is_insufficient_not_completed(task, env):
     _approve_latest(task.id)
     await ticks(task.id, 4)
     t = repo.get_task(task.id)
-    assert t.status == S.BLOCKED and "verification pending" in t.status_reason
+    assert t.status == S.BLOCKED and t.reason_code == "verification_pending"
     assert repo.latest_verification(task.id).verdict == Verdict.INSUFFICIENT_EVIDENCE
     assert len(env.portal.created) == 1                 # reconciling never re-booked
     assert "submit" not in env.portal.ops()[1:]
 
 
-async def test_rejected_approval_blocks_with_question(task, env):
+async def test_rejecting_finds_another_option_then_blocks_when_none_left(task, env):
+    """Roadmap A: rejecting means "not this one" — Orbit asks about the next eligible provider."""
     await to_approval_for_a(task.id)
     a = repo.get_latest_approval(task.id)
     approvals.decide(task.id, ApprovalDecisionIn(proposal_hash=a.proposal_hash, decision="rejected"))
     await ticks(task.id)
-    assert repo.get_task(task.id).status == S.BLOCKED
-    assert events(task.id, "question.asked")
-    assert env.portal.ops() == []
+    t = repo.get_task(task.id)
+    b = repo.get_latest_approval(task.id)
+    assert t.status == S.AWAITING_APPROVAL and t.reason_code == "awaiting_approval"
+    assert b.status == "requested" and b.proposal.provider_id == "provider_b"
+    assert "question.asked" not in types(task.id)
+    assert repo.get_active_fact(task.id, "provider_a.declined_by_user").value is True
+
+    approvals.decide(task.id, ApprovalDecisionIn(proposal_hash=b.proposal_hash, decision="rejected"))
+    await ticks(task.id)
+    t = repo.get_task(task.id)
+    assert t.status == S.BLOCKED and t.reason_code == "user_rejected_all"
+    q = events(task.id, "question.asked")[-1]
+    assert {o["id"] for o in q["options"]} >= {"reconsider", "add_provider", "stop"}
+    assert env.portal.ops() == []                        # nothing was ever booked
 
 
 async def test_budget_exceeded_blocks_once(env):
     body = resolve_seed("fixture")
     body.limits.max_tool_actions = 1
     task = repo.create_task(body)
-    await ticks(task.id, 3)                              # 2 sends > 1
+    await ticks(task.id, 3)                              # 2 sends need 2 actions > 1
     t = repo.get_task(task.id)
-    assert t.status == S.BLOCKED and t.status_reason.startswith("budget exceeded")
+    assert t.status == S.BLOCKED and t.reason_code == "budget_exceeded"
     assert types(task.id).count("budget.exceeded") == 1
+    assert repo.count_actions(task.id) <= 1              # gated before overspending (gap c)
 
 
 async def test_transient_read_failure_retries_with_backoff(task, env):

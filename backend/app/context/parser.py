@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta, timezone
 import re
 from zoneinfo import ZoneInfo
 
+from app.context.domain import service_terms
 from app.context.quote import ExtraFee, ProviderQuoteExtraction, QuoteSlot
 from app.context.values import iso
 
@@ -41,13 +42,21 @@ def _repair_included(text: str) -> bool:
     return False
 
 
-def parse_quote(text: str) -> ProviderQuoteExtraction:
+def _mentions_service(lower: str, service: str | None) -> bool:
+    # Word boundaries matter: "washer" must not match inside "dishwasher".
+    terms = sorted(service_terms(service), key=len, reverse=True)
+    return bool(terms) and re.search(
+        r"\b(?:" + "|".join(re.escape(t.lower()) for t in terms) + r")(?:e?s)?\b", lower) is not None
+
+
+def parse_quote(text: str, service: str | None = None) -> ProviderQuoteExtraction:
+    """`service` is the task's service id; None accepts any service in the pack's catalog."""
     clean = _spoken(quote_text(text))
     lower = clean.lower()
     q = ProviderQuoteExtraction()
     if not clean:
         return q
-    if "dishwasher" in lower:
+    if _mentions_service(lower, service):
         q.service_supported = not bool(re.search(r"(?:do not|don't|cannot|can't|no longer|not)\s+(?:\w+\s+){0,2}(?:repair|service|support)|(?:don't|do not)\s+work on", lower))
     q.is_correction = bool(re.search(r"forgot|sorry|correction|on top|actually|updated", lower))
     sentences = re.split(r"(?<=[.!?])\s+", clean)

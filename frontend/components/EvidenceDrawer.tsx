@@ -10,8 +10,9 @@ import {
   money,
   safeWording,
 } from "@/lib/format";
-import type { EvidenceArtifact, Verdict } from "@/lib/types";
-const labels: Record<string, string> = {
+import type { EvidenceArtifact, EvidenceKind, Verdict } from "@/lib/types";
+// Typed by EvidenceKind so a new kind can't silently render without a title.
+const labels: Record<EvidenceKind, string> = {
   message_in: "Provider message",
   message_out: "Outgoing message",
   portal_confirmation: "Portal record",
@@ -20,6 +21,7 @@ const labels: Record<string, string> = {
   availability: "Availability",
   delivery_receipt: "Delivery receipt",
   creao_output: "CREAO output",
+  user_decision: "Your decision",
 };
 export function EvidenceList({
   evidence,

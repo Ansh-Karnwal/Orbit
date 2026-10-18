@@ -1,7 +1,16 @@
 name: home_repair
 version: v1
+services:
+  - id: dishwasher_repair
+    label: Dishwasher repair
+    description: Diagnostic visit for a dishwasher that won't drain, clean or start.
+    synonyms: [dishwasher, dish washer]
+  - id: washer_repair
+    label: Washing machine repair
+    description: Diagnostic visit for a washing machine that won't spin, drain or start.
+    synonyms: [washer, washing machine, clothes washer]
 intake_fields:
-  service: A nonempty service identifier; dishwasher_repair for this workflow.
+  service: A service id from this pack's services list (dishwasher_repair, washer_repair).
   window_start: Timezone-aware inclusive UTC start, earlier than window_end.
   window_end: Timezone-aware inclusive UTC end.
   timezone: Valid IANA zone used to resolve local appointment times.
@@ -92,6 +101,14 @@ examples:
   - name: inconsistent_arithmetic
     message: Dishwasher diagnostic visit is $120 plus a $70 trip charge, $180 total.
     expected: {base_charge_cents: 12000, visit_charge_cents: 18000, extra_fees: [{name: trip, cents: 7000}]}
+  - name: washer_initial
+    service: washer_repair
+    message: Yes, we fix washing machines. Diagnostic visit is $130 including travel. Tuesday 3–4pm. Free cancellation with 24 hours notice.
+    expected: {service_supported: true, visit_charge_cents: 13000, fee_scope: diagnostic_visit_including_travel, slots_count: 1}
+  - name: dishwasher_reply_to_washer_task
+    service: washer_repair
+    message: Yes we repair dishwashers. Diagnostic visit is $145 including travel. Tuesday 2:30–3:30pm.
+    expected: {service_supported: null, visit_charge_cents: 14500}
 message_templates:
   inquiry: "Hi {provider_name}, can you repair a {service} {window}? Please confirm the total diagnostic visit charge including all travel/trip fees (budget {budget}), what it covers, available slots, cancellation terms, and whether parts/labor are quoted after diagnosis. I need user approval before booking."
   followup: "Hi {provider_name}, please confirm: {questions} I need user approval before booking."

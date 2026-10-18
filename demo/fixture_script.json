@@ -1,5 +1,5 @@
 {
-  "_note": "Owner: Ansh. Scripted provider replies for FixtureMessagingAdapter (contract §3.9). after_s is seconds after Orbit's first inquiry to that provider. on_inquiry replies fire once per (task, provider); auto_followup replies fire only when FIXTURE_AUTO_FOLLOWUPS=1 (otherwise the presenter injects them via POST /demo/inject-event).",
+  "_note": "Owner: Ansh. Scripted provider replies for FixtureMessagingAdapter (contract §3.9). after_s is seconds after Orbit's first inquiry to that provider. on_inquiry replies fire once per (task, provider); auto_followup replies fire only when FIXTURE_AUTO_FOLLOWUPS=1 (otherwise the presenter injects them via POST /demo/inject-event). Keys are a provider id (the dishwasher story) or '<provider id>@<service id>' for other services. Prices match portal/providers.yaml so a booking can verify.",
   "provider_a": [
     {
       "after_s": 2,
@@ -17,6 +17,34 @@
       "after_s": 3,
       "trigger": "on_inquiry",
       "text": "Yes we repair dishwashers. Diagnostic visit is $145 including travel. Tuesday 2:30–3:30pm or 4–5pm. Cancel free more than 12 hours ahead, $25 inside 12 hours. Parts and labor are quoted after diagnosis."
+    }
+  ],
+  "provider_c": [
+    {
+      "after_s": 4,
+      "trigger": "on_inquiry",
+      "text": "Coastal Appliance Pros here. Dishwasher diagnostic visit is $160 including travel. Tuesday 2–3pm. Free cancellation with 48 hours notice."
+    }
+  ],
+  "provider_a@washer_repair": [
+    {
+      "after_s": 2,
+      "trigger": "on_inquiry",
+      "text": "Hi! Washing machine diagnostic visit is $110 including travel. Tuesday 3–4pm. Free cancellation with 24 hours notice."
+    }
+  ],
+  "provider_b@washer_repair": [
+    {
+      "after_s": 3,
+      "trigger": "on_inquiry",
+      "text": "Yes, we fix washers. Diagnostic visit is $135 including travel. Tuesday 2:30–3:30pm or 4–5pm. Cancel free more than 12 hours ahead, $25 inside 12 hours. Parts and labor are quoted after diagnosis."
+    }
+  ],
+  "provider_c@washer_repair": [
+    {
+      "after_s": 4,
+      "trigger": "on_inquiry",
+      "text": "Coastal Appliance Pros here. We fix washing machines: diagnostic visit $125 including travel. Tuesday 4–5pm. Free cancellation with 48 hours notice."
     }
   ]
 }

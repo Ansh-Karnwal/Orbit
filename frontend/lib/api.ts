@@ -1,4 +1,5 @@
 import type {
+  AnswerIn,
   Approval,
   ApprovalDecisionIn,
   DemoInjectIn,
@@ -8,11 +9,15 @@ import type {
   EvidenceArtifact,
   Health,
   PortalFaultIn,
+  ProviderSpec,
+  ServiceInfo,
   Task,
   TaskCreate,
+  TaskStatus,
   TaskView,
+  UserInfo,
 } from "./types";
-import { ApiError, StaleProposalError } from "./errors";
+import { ApiError, ErrorBody, StaleProposalError } from "./errors";
 export { ApiError, StaleProposalError } from "./errors";
 export const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "1";
 export const API_BASE = (
@@ -30,33 +35,63 @@ export async function request<T>(
     body: body === undefined ? undefined : JSON.stringify(body),
     signal,
     cache: "no-store",
+    credentials: "include", // the sign-in cookie (demo sign-in today)
   });
   if (!response.ok) {
-    let detail: unknown;
+    let payload: { detail?: unknown; error?: ErrorBody } | undefined;
     try {
-      detail = (await response.json()).detail;
+      payload = await response.json();
     } catch {
-      detail = response.statusText;
+      payload = undefined;
     }
+    const error = payload?.error ?? null;
+    const detail = payload?.detail ?? response.statusText;
+    const legacy =
+      detail && typeof detail === "object" && "code" in detail
+        ? (detail as { code?: string; current_hash?: string; reason?: string })
+        : null;
     if (
       response.status === 409 &&
-      detail &&
-      typeof detail === "object" &&
-      "code" in detail &&
-      detail.code === "stale_proposal"
+      (error?.code === "stale_proposal" || legacy?.code === "stale_proposal")
     ) {
-      const d = detail as { current_hash?: string; reason?: string };
       throw new StaleProposalError(
-        d.current_hash ?? null,
-        d.reason ?? "Terms changed",
+        (error?.details?.current_hash as string | undefined) ??
+          legacy?.current_hash ??
+          null,
+        (error?.details?.reason as string | undefined) ??
+          legacy?.reason ??
+          "Terms changed",
       );
     }
-    throw new ApiError(response.status, detail);
+    throw new ApiError(response.status, detail, error);
   }
   return response.json() as Promise<T>;
 }
 const mocks = async () => (await import("@/mocks/store")).mock;
 const taskPath = (id: string) => `/tasks/${encodeURIComponent(id)}`;
+const query = (params: Record<string, string | boolean | undefined>) => {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params))
+    if (v !== undefined && v !== false && v !== "") q.set(k, String(v));
+  const s = q.toString();
+  return s ? `?${s}` : "";
+};
+export const MOCK_SERVICES: ServiceInfo[] = [
+  {
+    id: "dishwasher_repair",
+    label: "Dishwasher repair",
+    pack: "home_repair/v1",
+    description:
+      "Diagnostic visit for a dishwasher that won't drain, clean or start.",
+  },
+  {
+    id: "washer_repair",
+    label: "Washing machine repair",
+    pack: "home_repair/v1",
+    description:
+      "Diagnostic visit for a washing machine that won't spin, drain or start.",
+  },
+];
 export const api = {
   health: async (): Promise<Health> =>
     USE_MOCKS
@@ -71,12 +106,32 @@ export const api = {
           },
         }
       : request("/health"),
-  seed: async (): Promise<TaskCreate> =>
-    USE_MOCKS ? (await mocks()).seed() : request("/demo/seed"),
+  seed: async (
+    opts: { service?: string; extra?: boolean } = {},
+  ): Promise<TaskCreate> =>
+    USE_MOCKS
+      ? (await mocks()).seed()
+      : request(`/demo/seed${query(opts)}`),
+  sandboxProviders: async (): Promise<ProviderSpec[]> =>
+    USE_MOCKS
+      ? (await mocks()).sandboxProviders()
+      : request("/demo/providers"),
+  services: async (): Promise<ServiceInfo[]> =>
+    USE_MOCKS ? MOCK_SERVICES : request("/services"),
   create: async (body: TaskCreate): Promise<TaskView> =>
     USE_MOCKS ? (await mocks()).create(body) : request("/tasks", body),
-  list: async (): Promise<Task[]> =>
-    USE_MOCKS ? (await mocks()).list() : request("/tasks"),
+  list: async (
+    filter: { service?: string; status?: TaskStatus } = {},
+  ): Promise<Task[]> =>
+    USE_MOCKS
+      ? (await mocks())
+          .list()
+          .filter(
+            (t: Task) =>
+              (!filter.service || t.constraints.service === filter.service) &&
+              (!filter.status || t.status === filter.status),
+          )
+      : request(`/tasks${query(filter)}`),
   task: async (id: string, signal?: AbortSignal): Promise<TaskView> =>
     USE_MOCKS
       ? (await mocks()).get(id)
@@ -85,6 +140,10 @@ export const api = {
     USE_MOCKS
       ? (await mocks()).approve(id, body)
       : request(`${taskPath(id)}/approvals`, body),
+  answer: async (id: string, body: AnswerIn): Promise<Task> =>
+    USE_MOCKS
+      ? (await mocks()).answer(id, body)
+      : request(`${taskPath(id)}/answers`, body),
   cancel: async (id: string): Promise<Task> =>
     USE_MOCKS
       ? (await mocks()).cancel(id)
@@ -93,6 +152,14 @@ export const api = {
     USE_MOCKS
       ? (await mocks()).get(id).evidence
       : request(`${taskPath(id)}/evidence`),
+  me: async (): Promise<UserInfo> =>
+    USE_MOCKS ? (await mocks()).me() : request("/auth/me"),
+  login: async (display_name: string): Promise<UserInfo> =>
+    USE_MOCKS
+      ? (await mocks()).login(display_name)
+      : request("/auth/login", { display_name }),
+  logout: async (): Promise<UserInfo> =>
+    USE_MOCKS ? (await mocks()).logout() : request("/auth/logout", {}),
   reset: async (body: DemoResetIn): Promise<DemoResetResult> =>
     USE_MOCKS
       ? {
@@ -112,7 +179,7 @@ export const api = {
   artifactUrl: (id: string) =>
     `${API_BASE}/artifacts/${encodeURIComponent(id)}`,
   artifact: async (id: string): Promise<Blob> => {
-    const r = await fetch(api.artifactUrl(id));
+    const r = await fetch(api.artifactUrl(id), { credentials: "include" });
     if (!r.ok) throw new ApiError(r.status, "Artifact unavailable");
     return r.blob();
   },

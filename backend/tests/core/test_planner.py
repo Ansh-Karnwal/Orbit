@@ -196,7 +196,8 @@ def test_replan_followup_once_then_blocked(task):
     _set_state(added[:3], StepState.SUCCEEDED)
     assert planner.replan(task.id, "still no eligible provider") == []
     t = repo.get_task(task.id)
-    assert t.status == TaskStatus.BLOCKED and "raise the budget" in t.status_reason
+    assert t.status == TaskStatus.BLOCKED and t.reason_code == "no_eligible_provider"
+    assert "raise the budget" in t.status_reason.lower()
     assert repo.list_timeline(task.id)[-2].type == "question.asked"
     assert len([s for s in repo.list_steps(task.id) if planner.is_followup(s)]) == 1
 

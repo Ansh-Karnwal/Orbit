@@ -24,13 +24,19 @@ class FakeMessaging:
 
     def __init__(self) -> None:
         self.sent: list[tuple[str, str]] = []           # (provider_id, idempotency_key)
+        self.texts: list[tuple[str, str]] = []          # (provider_id, text)
         self.fail_next = 0
+        self.must_text_first: set[str] = set()          # provider ids the shared line can't reach yet
 
     async def send(self, task_id: str, provider: ProviderSpec, text: str,
                    idempotency_key: str) -> SendResult:
         if self.fail_next:
             self.fail_next -= 1
             return SendResult(status="failed", error="carrier error")
+        if provider.id in self.must_text_first:
+            return SendResult(status="failed", error_code="must_text_first",
+                              error="shared iMessage line can't send first")
+        self.texts.append((provider.id, text))
         self.sent.append((provider.id, idempotency_key))
         ev = save_evidence(task_id, "message_out", "fixture_messaging", is_fixture=True,
                            extracted={"text": text, "provider_id": provider.id})
@@ -45,7 +51,8 @@ class FakeMessaging:
 
 
 # Same daily slots as portal/providers.yaml (local time): Ace 15:00, Bayside 14:30 and 16:00.
-PORTAL_SLOTS = {"provider_a": ((15, 0),), "provider_b": ((14, 30), (16, 0))}
+PORTAL_SLOTS = {"provider_a": ((15, 0),), "provider_b": ((14, 30), (16, 0)),
+                "provider_c": ((14, 0), (16, 0))}
 
 
 class FakePortal:

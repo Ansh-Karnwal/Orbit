@@ -3609,3 +3609,357 @@ kbd {
 .predicates strong {
   color: #526982;
 }
+
+/* ------------------------------------------------------------------ roadmap A–G additions */
+.badge.blue {
+  color: var(--blue-dark);
+  background: #eef4ff;
+  border-color: #d9e5fb;
+}
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+.icon-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.text-button:hover:not(:disabled) {
+  color: var(--ink);
+  text-decoration: underline;
+}
+.text-button.danger:hover:not(:disabled) {
+  color: var(--red);
+}
+.button.danger-outline {
+  color: var(--red);
+  border-color: #efd3d3;
+}
+.chip {
+  padding: 5px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.chip.active {
+  color: var(--blue-dark);
+  border-color: #c9d9f6;
+  background: #eef4ff;
+}
+
+/* provider accents (any number of providers) */
+.provider-initial.accent-1 {
+  background: linear-gradient(135deg, #edf7f2, #e0eee7);
+  border-color: #dfebe4;
+  color: #538772;
+}
+.provider-initial.accent-2 {
+  background: linear-gradient(135deg, #f3f6ea, #e6ecd5);
+  border-color: #e3e9d2;
+  color: #5d7a3e;
+}
+.provider-initial.accent-3 {
+  background: linear-gradient(135deg, #fbf2ea, #f2e2d3);
+  border-color: #efe0d1;
+  color: #9a6234;
+}
+.provider-initial.accent-4 {
+  background: linear-gradient(135deg, #f4effa, #e7def3);
+  border-color: #e4dbef;
+  color: #74599b;
+}
+.provider-summary {
+  margin: 8px 0 4px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.provider-card.proposed {
+  border-color: #c9d9f6;
+  box-shadow: 0 0 0 3px #eef4ff, var(--shadow);
+}
+.provider-card.declined {
+  opacity: 0.72;
+}
+
+/* sliding provider gallery (C) */
+.provider-gallery {
+  display: grid;
+  gap: 10px;
+}
+.gallery-controls {
+  justify-content: flex-end;
+  gap: 6px;
+}
+.gallery-position {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 13px;
+}
+.gallery-track {
+  position: relative;
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  padding: 2px 2px 10px;
+  scrollbar-width: thin;
+}
+.gallery-track:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+  border-radius: 12px;
+}
+.gallery-slide {
+  flex: 0 0 min(360px, 86%);
+  scroll-snap-align: start;
+}
+.gallery-slide > .provider-card {
+  height: 100%;
+}
+.gallery-dots {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+}
+.gallery-dots button {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--line);
+  cursor: pointer;
+}
+.gallery-dots button.active {
+  width: 20px;
+  background: var(--blue);
+}
+
+/* approvals (A): approve and "find another" each get a full row; secondary links below */
+.approval-buttons {
+  flex-wrap: wrap;
+}
+.approval-buttons .approve-btn,
+.approval-buttons .reject-btn {
+  flex: 1 1 100%;
+  white-space: nowrap;
+  justify-content: center;
+}
+.approval-secondary {
+  flex: 1 1 100%;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.approval-card.declined {
+  opacity: 0.8;
+}
+
+/* questions (F3) */
+.question-card {
+  border-color: #f0dcb8;
+  box-shadow: 0 0 0 3px #fdf6ea, var(--shadow);
+}
+.question-text {
+  margin: 4px 0 12px;
+  line-height: 1.5;
+}
+.question-options {
+  display: grid;
+  gap: 8px;
+}
+.question-option.open {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fbfcfe;
+}
+.question-form {
+  margin-top: 10px;
+}
+
+/* intake providers (B) and contact (G) */
+.provider-pill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.provider-pill-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px 5px 5px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+.provider-pill-item .provider-initial {
+  width: 26px;
+  height: 26px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+.pill-remove {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.pill-remove:hover:not(:disabled) {
+  color: var(--red);
+  background: #fbefef;
+}
+.pill-remove:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.provider-add {
+  margin-top: 10px;
+  gap: 8px;
+}
+.provider-custom input {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+/* services room (D) */
+.services-main,
+.signin-main {
+  width: min(1100px, 100%);
+  margin: 0 auto;
+  padding: 32px 20px 80px;
+  display: grid;
+  gap: 28px;
+}
+.services-heading {
+  align-items: flex-end;
+}
+.service-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+.service-card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.service-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+.service-filters {
+  gap: 6px;
+}
+.search-group h3 {
+  margin: 10px 0 8px;
+  font-size: 15px;
+}
+.search-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.search-row {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  text-decoration: none;
+}
+.search-row:hover {
+  border-color: #c9d9f6;
+}
+.search-service {
+  font-weight: 500;
+}
+.search-outcome {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--muted);
+}
+.search-time {
+  font-size: 12px;
+}
+@media (max-width: 720px) {
+  .search-row {
+    grid-template-columns: 1fr auto;
+  }
+  .search-outcome,
+  .search-time {
+    display: none;
+  }
+}
+
+/* sign-in (E) */
+.signin-main {
+  width: min(520px, 100%);
+}
+.signin-card {
+  display: grid;
+  gap: 14px;
+}
+.header-actions {
+  gap: 10px;
+  align-items: center;
+}
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 13px;
+  text-decoration: none;
+}
+.user-chip:hover {
+  border-color: #c9d9f6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gallery-track {
+    scroll-behavior: auto;
+  }
+}

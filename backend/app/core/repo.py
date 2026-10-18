@@ -4,6 +4,7 @@ them (tasks, steps, inbound processing, timeline reads, counters, pub/sub) are c
 from __future__ import annotations
 
 import asyncio
+import secrets
 import threading
 from collections import defaultdict
 from contextlib import contextmanager
@@ -16,12 +17,12 @@ from sqlalchemy.orm import Session
 
 from app.core import db
 from app.core.db import (ActionRow, ApprovalRow, Base, BudgetCounterRow, EvidenceRow, FactRow,
-                         InboundRow, ProviderRow, StepRow, TaskRow, TimelineRow, UTCDateTime,
-                         VerificationRow)
-from app.core.schemas import (TERMINAL_STATUSES, Approval, ContextFact, EvidenceArtifact,
-                              FactStatus, InboundEvent, PlanStep, Proposal, ProviderSpec, Task,
-                              TaskCreate, TaskStatus, TimelineEvent, ToolAction,
-                              VerificationResult, Verdict, new_id, utcnow)
+                         InboundRow, ProviderRow, SessionRow, StepRow, TaskRow, TimelineRow,
+                         UTCDateTime, VerificationRow)
+from app.core.schemas import (TERMINAL_STATUSES, Approval, Constraints, ContextFact,
+                              EvidenceArtifact, FactStatus, InboundEvent, Limits, PlanStep,
+                              Proposal, ProviderSpec, Task, TaskCreate, TaskStatus, TimelineEvent,
+                              ToolAction, VerificationResult, Verdict, new_id, utcnow)
 from app.core.state import CompletionGateError, check_transition
 
 M = TypeVar("M", bound=BaseModel)
@@ -132,11 +133,12 @@ def list_timeline(task_id: str, after_seq: int = 0, last: int | None = None) -> 
 
 
 # ---------------------------------------------------------------- tasks & providers
-def create_task(body: TaskCreate) -> Task:
+def create_task(body: TaskCreate, owner_id: str = "demo_user") -> Task:
     now = utcnow()
     task = Task(id=new_id("tsk"), outcome_text=body.outcome_text, constraints=body.constraints,
-                limits=body.limits, mode=body.mode, status=TaskStatus.DRAFT, source=body.source,
-                creao_ref=body.creao_ref, created_at=now, updated_at=now)
+                limits=body.limits, mode=body.mode, status=TaskStatus.DRAFT, reason_code="draft",
+                source=body.source, creao_ref=body.creao_ref, owner_id=owner_id,
+                user_contact=body.user_contact, created_at=now, updated_at=now)
     with _tx() as s:
         s.add(TaskRow(**_values(task, TaskRow)))
         s.flush()
@@ -154,10 +156,40 @@ def get_task(task_id: str) -> Task:
         return _to(Task, _get(s, TaskRow, task_id, "task"))
 
 
-def list_tasks() -> list[Task]:
+def list_tasks(owner_id: str | None = None, service: str | None = None,
+               status: str | None = None) -> list[Task]:
+    """Newest first, optionally filtered by owner, service and status."""
     with db.session() as s:
-        rows = s.scalars(select(TaskRow).order_by(TaskRow.created_at.desc(), _rowid_desc(TaskRow)))
-        return [_to(Task, r) for r in rows]
+        q = select(TaskRow)
+        if owner_id is not None:
+            q = q.where(TaskRow.owner_id == owner_id)
+        if status is not None:
+            q = q.where(TaskRow.status == status)
+        rows = s.scalars(q.order_by(TaskRow.created_at.desc(), _rowid_desc(TaskRow)))
+        tasks = [_to(Task, r) for r in rows]
+    return [t for t in tasks if service is None or t.constraints.service == service]
+
+
+def update_task_terms(task_id: str, *, constraints: Constraints | None = None,
+                      limits: Limits | None = None) -> Task:
+    """User-driven changes only (answers to Orbit's questions). Provider content never calls this."""
+    with _tx() as s:
+        row = _get(s, TaskRow, task_id, "task")
+        if constraints is not None:
+            row.constraints = constraints.model_dump(mode="json")
+        if limits is not None:
+            row.limits = limits.model_dump(mode="json")
+        row.updated_at = utcnow()
+        return _to(Task, row)
+
+
+def add_provider(task_id: str, spec: ProviderSpec) -> ProviderSpec:
+    with _tx() as s:
+        _get(s, TaskRow, task_id, "task")
+        position = s.scalar(select(func.count()).select_from(ProviderRow)
+                            .where(ProviderRow.task_id == task_id)) or 0
+        s.add(ProviderRow(**_values(spec, ProviderRow, task_id=task_id, position=position)))
+    return spec
 
 
 def list_active_tasks() -> list[Task]:
@@ -183,23 +215,38 @@ def _check_completion_gate(s: Session, task_id: str) -> None:
         raise CompletionGateError("PASS verification refers to a different approval")
 
 
-def set_status(task_id: str, status: TaskStatus, reason: str = "") -> Task:
+DEFAULT_REASON_CODE = {
+    TaskStatus.DRAFT: "draft", TaskStatus.PLANNING: "planning", TaskStatus.RUNNING: "running",
+    TaskStatus.AWAITING_APPROVAL: "awaiting_approval",
+    TaskStatus.WAITING_EXTERNAL: "waiting_on_providers", TaskStatus.VERIFYING: "verifying",
+    TaskStatus.COMPLETED: "completed", TaskStatus.CANCELLED: "cancelled",
+    TaskStatus.FAILED: "failed", TaskStatus.BLOCKED: "step_failed",
+}
+
+
+def set_status(task_id: str, status: TaskStatus, reason: str = "",
+               code: str | None = None) -> Task:
     """Enforces the state machine and the completion gate; emits task.status_changed.
-    Setting the current status again only updates the reason (no event)."""
+    `code` is the machine-readable reason (schemas.ReasonCode); it defaults per status.
+    Setting the current status again only updates reason/code (no event)."""
     status = TaskStatus(status)
     with _tx() as s:
         row = _get(s, TaskRow, task_id, "task")
         current = TaskStatus(row.status)
         if current == status:
-            if reason and reason != row.status_reason:
-                row.status_reason, row.updated_at = reason, utcnow()
+            if (reason and reason != row.status_reason) or (code and code != row.reason_code):
+                row.status_reason = reason or row.status_reason
+                row.reason_code = code or row.reason_code
+                row.updated_at = utcnow()
             return _to(Task, row)
         check_transition(current, status)
         if status == TaskStatus.COMPLETED:
             _check_completion_gate(s, task_id)
-        row.status, row.status_reason, row.updated_at = status.value, reason, utcnow()
+        code = code or DEFAULT_REASON_CODE[status]
+        row.status, row.status_reason, row.reason_code = status.value, reason, code
+        row.updated_at = utcnow()
         _emit(s, task_id, "task.status_changed", f"{current.value} → {status.value}",
-              {"from": current.value, "to": status.value, "reason": reason})
+              {"from": current.value, "to": status.value, "reason": reason, "reason_code": code})
         return _to(Task, row)
 
 
@@ -231,6 +278,38 @@ def find_task_by_handle(handle: str) -> tuple[str, str] | None:
             .where(ProviderRow.handle == handle, TaskRow.status.not_in(terminal))
             .order_by(TaskRow.created_at.desc()).limit(1)).first()
         return (row[0], row[1]) if row else None
+
+
+def find_task_by_user_contact(handle: str) -> str | None:
+    """Newest active task whose user (not a provider) reports to `handle`."""
+    terminal = [t.value for t in TERMINAL_STATUSES]
+    with db.session() as s:
+        return s.scalars(select(TaskRow.id)
+                         .where(TaskRow.user_contact == handle, TaskRow.status.not_in(terminal))
+                         .order_by(TaskRow.created_at.desc()).limit(1)).first()
+
+
+# ---------------------------------------------------------------- sign-in sessions (demo)
+def create_session(user_id: str, display_name: str) -> str:
+    token = "ses_" + secrets.token_urlsafe(32)
+    with _tx() as s:
+        s.add(SessionRow(token=token, user_id=user_id, display_name=display_name,
+                         created_at=utcnow()))
+    return token
+
+
+def get_session(token: str) -> tuple[str, str] | None:
+    """(user_id, display_name) for a session token, or None."""
+    with db.session() as s:
+        row = s.get(SessionRow, token)
+        return (row.user_id, row.display_name) if row else None
+
+
+def delete_session(token: str) -> None:
+    with _tx() as s:
+        row = s.get(SessionRow, token)
+        if row is not None:
+            s.delete(row)
 
 
 # ---------------------------------------------------------------- facts
@@ -301,6 +380,13 @@ def record_inbound(ev: InboundEvent) -> tuple[InboundEvent, bool]:
             return _to(InboundEvent, row), False
 
 
+def get_inbound(inbound_id: str) -> InboundEvent:
+    """Used by context to validate fact sources and to date facts by when the message arrived,
+    so an older message delivered late can't overwrite a newer fact."""
+    with db.session() as s:
+        return _to(InboundEvent, _get(s, InboundRow, inbound_id, "inbound event"))
+
+
 def get_inbound_by_external(source: str, external_id: str) -> InboundEvent | None:
     with db.session() as s:
         row = s.scalars(select(InboundRow).where(InboundRow.source == source,
@@ -328,6 +414,18 @@ def list_inbound(task_id: str, provider_id: str | None = None) -> list[InboundEv
 def mark_inbound_processed(inbound_id: str) -> None:
     with _tx() as s:
         _get(s, InboundRow, inbound_id, "inbound event").processed = True
+
+
+def update_inbound(inbound_id: str, *, payload: dict | None = None,
+                   processed: bool | None = None) -> InboundEvent:
+    """Merge into payload (e.g. extraction retry bookkeeping) and/or set processed."""
+    with _tx() as s:
+        row = _get(s, InboundRow, inbound_id, "inbound event")
+        if payload is not None:
+            row.payload = {**(row.payload or {}), **payload}
+        if processed is not None:
+            row.processed = processed
+        return _to(InboundEvent, row)
 
 
 # ---------------------------------------------------------------- approvals

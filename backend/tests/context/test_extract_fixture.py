@@ -10,7 +10,7 @@ from app.context.values import usd_to_cents
 
 @pytest.mark.parametrize("example", load_pack().examples, ids=lambda x: x.name)
 def test_domain_examples(example):
-    quote = parse_quote(example.message)
+    quote = parse_quote(example.message, example.service)
     actual = {}
     for field in ("service_supported", "fee_scope", "cancellation_terms"):
         value = getattr(quote, field)

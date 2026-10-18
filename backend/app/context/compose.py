@@ -1,5 +1,5 @@
 from app.core import repo
-from app.context.domain import load_pack
+from app.context.domain import load_pack, service_def
 from app.context.values import local_window, money
 
 QUESTIONS = {
@@ -19,8 +19,11 @@ QUESTIONS = {
 def compose_inquiry(task_id: str, provider_id: str) -> str:
     task = repo.get_task(task_id)
     provider = repo.get_provider(task_id, provider_id)
+    service = service_def(task.constraints.service)
+    noun = (service.synonyms[0] if service else
+            task.constraints.service.replace("_repair", "").replace("_", " "))
     text = load_pack().message_templates["inquiry"].format(
-        provider_name=provider.name[:50], service=task.constraints.service.replace("_repair", "").replace("_", " ")[:50],
+        provider_name=provider.name[:50], service=noun[:50],
         window=local_window(task.constraints), budget=money(task.constraints.max_visit_charge_cents))
     if len(text) > 480:
         raise ValueError("Inquiry exceeds 480 characters")

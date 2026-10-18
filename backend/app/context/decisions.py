@@ -4,6 +4,21 @@ from app.context.conflicts import conflicts_for, current_facts
 from app.context.values import local_window, money, slot_pairs
 
 
+def open_slots(task, pf) -> list[tuple]:
+    """Bookable (start, end) pairs for one provider: offered ∩ portal (when read), fully inside
+    the window, minus slots the user declined. Shared by eligibility and proposals so they can't
+    disagree about whether a provider still has an option."""
+    if "slots_offered" not in pf:
+        return []
+    slots = slot_pairs(pf["slots_offered"].value)
+    if "portal_slots" in pf:
+        slots &= slot_pairs(pf["portal_slots"].value)
+    if "declined_slots" in pf:
+        slots -= slot_pairs(pf["declined_slots"].value)
+    return sorted((a, b) for a, b in slots
+                  if task.constraints.window_start <= a < b <= task.constraints.window_end)
+
+
 def eligibility_for(task, providers, facts) -> dict[str, list[str]]:
     active = current_facts(facts)
     conflicts = conflicts_for(task.constraints, providers, facts)
@@ -39,6 +54,11 @@ def eligibility_for(task, providers, facts) -> dict[str, list[str]]:
         scope = pf.get("fee_scope")
         if scope and scope.value in {"", "unknown", "diagnostic_visit_excluding_travel"}:
             reasons.append("Total visit charge and fee scope including travel are not confirmed")
+        # The user's own decisions (recorded as user_decision evidence) outrank any quote.
+        if "declined_by_user" in pf and pf["declined_by_user"].value is True:
+            reasons.append("Declined by you")
+        elif "declined_slots" in pf and pf["declined_slots"].value and not open_slots(task, pf):
+            reasons.append("All offered times declined by you")
         result[p.id] = list(dict.fromkeys(reasons))
     return result
 
@@ -48,13 +68,12 @@ def proposal_for(task, provider, facts, providers=None) -> Proposal | None:
     if eligibility_for(task, providers, facts)[provider.id]:
         return None
     pf = {k.split(".", 1)[1]: f for k, f in current_facts(facts).items() if k.startswith(provider.id + ".")}
-    slots = slot_pairs(pf["slots_offered"].value)
-    if "portal_slots" in pf:
-        slots &= slot_pairs(pf["portal_slots"].value)
-    eligible_slots = sorted((a, b) for a, b in slots if task.constraints.window_start <= a < b <= task.constraints.window_end)
+    eligible_slots = open_slots(task, pf)
     if not eligible_slots:
         return None
-    used = [f for key, f in sorted(pf.items()) if key != "no_reply"]
+    # User decisions don't change the offer itself, so they stay out of the proposal's sources.
+    used = [f for key, f in sorted(pf.items())
+            if key not in {"no_reply", "declined_by_user", "declined_slots"}]
     return Proposal(task_id=task.id, provider_id=provider.id, provider_name=provider.name, service=task.constraints.service,
                     slot_start=eligible_slots[0][0], slot_end=eligible_slots[0][1],
                     visit_charge_cents=pf["visit_charge_cents"].value, fee_scope=pf["fee_scope"].value,

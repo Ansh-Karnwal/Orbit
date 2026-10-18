@@ -14,8 +14,8 @@ import hashlib
 
 from app.context.domain import load_pack
 from app.context.proposals import best_proposal, eligibility
-from app.core import repo
-from app.core.schemas import PlanStep, StepKind as K, StepState, TaskStatus, new_id, utcnow
+from app.core import questions, repo
+from app.core.schemas import PlanStep, StepKind as K, StepState, new_id, utcnow
 
 QUOTE_KINDS = {K.SEND_INQUIRY, K.AWAIT_REPLY, K.EXTRACT_QUOTE}
 BOOKING_KINDS = {K.SUBMIT_BOOKING, K.RECONCILE_BOOKING}
@@ -140,7 +140,7 @@ def _followup_candidates(task_id: str, dead: set[str], steps: list[PlanStep]) ->
     out = []
     for pid in sorted(dead):
         used = sum(1 for s in steps if s.provider_id == pid and is_followup(s))
-        if used >= MAX_FOLLOWUPS_PER_PROVIDER:
+        if used >= MAX_FOLLOWUPS_PER_PROVIDER or _declined(task_id, pid):
             continue
         no_reply = repo.get_active_fact(task_id, f"{pid}.no_reply")
         if no_reply is not None and no_reply.value:
@@ -154,9 +154,20 @@ def _followup_candidates(task_id: str, dead: set[str], steps: list[PlanStep]) ->
     return out
 
 
-def _block(task_id: str, question: str, data: dict) -> None:
-    repo.emit(task_id, "question.asked", question, data)
-    repo.set_status(task_id, TaskStatus.BLOCKED, question)
+def _declined(task_id: str, provider_id: str) -> bool:
+    """The user turned this provider down (whole provider, or every offered time)."""
+    reasons = eligibility(task_id).get(provider_id, [])
+    return any(r in ("Declined by you", "All offered times declined by you") for r in reasons)
+
+
+def add_provider_chain(task_id: str, provider_id: str, reason: str) -> list[PlanStep]:
+    """A provider added mid-task (user's answer): inquire, then decide again over everyone live."""
+    pv = current_plan_version(task_id) + 1
+    chain = _quote_chain(task_id, pv, provider_id)
+    repo.save_steps(chain, events=[("plan.revised", f"Plan revised (v{pv}): {reason}",
+                                    {"plan_version": pv, "added_step_ids": [s.id for s in chain],
+                                     "skipped_step_ids": [], "reason": reason})], task_id=task_id)
+    return chain + replan(task_id, reason)
 
 
 def replan(task_id: str, reason: str) -> list[PlanStep]:
@@ -167,8 +178,9 @@ def replan(task_id: str, reason: str) -> list[PlanStep]:
     if any(s.kind in BOOKING_KINDS and s.state == StepState.RUNNING for s in steps):
         return []        # booking in flight; verification decides, never plan around it
     if _booking_attempted(task_id):
-        _block(task_id, "Terms changed after a booking was submitted. Please review with the "
-                        "provider before Orbit does anything else.", {"reason": reason})
+        questions.ask(task_id, "Terms changed after a booking was submitted. Please review with "
+                               "the provider before Orbit does anything else.",
+                      "terms_changed_after_booking", {"reason": reason})
         return []
 
     pv = max((s.plan_version for s in steps), default=0) + 1
@@ -189,6 +201,7 @@ def replan(task_id: str, reason: str) -> list[PlanStep]:
 
     added: list[PlanStep] = []
     question: str | None = None
+    code = "no_eligible_provider"
     if live:   # someone is still quoting or is eligible: decide again over them
         deps = []
         for p in live:
@@ -207,9 +220,15 @@ def replan(task_id: str, reason: str) -> list[PlanStep]:
         if candidates:
             added += _decision_chain(task_id, pv, deps)
         else:
-            details = "; ".join(f"{p}: {', '.join(r)}" for p, r in elig.items() if r)
-            question = (f"No provider meets your constraints ({details}). "
-                        "Would you like to raise the budget or widen the time window?")
+            names = {p.id: p.name for p in repo.get_providers(task_id)}
+            details = "; ".join(f"{names.get(p, p)}: {', '.join(r)}" for p, r in elig.items() if r)
+            if dead and all(_declined(task_id, p) for p in dead):
+                code = "user_rejected_all"
+                question = (f"You've declined every option ({details}). Reconsider one, add "
+                            "another provider, or stop?")
+            else:
+                question = (f"No provider meets your constraints ({details}). Raise the budget, "
+                            "widen the time window, or add another provider?")
 
     best = best_proposal(task_id)
     events = [("step.skipped", f"Skipped {s.kind.value}" + (f" ({s.provider_id})" if s.provider_id else ""),
@@ -224,5 +243,5 @@ def replan(task_id: str, reason: str) -> list[PlanStep]:
     repo.save_steps(skipped + added, events=events, task_id=task_id)
 
     if question:
-        _block(task_id, question, {"eligibility": elig, "reason": reason})
+        questions.ask(task_id, question, code, {"eligibility": elig, "reason": reason})
     return added

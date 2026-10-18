@@ -63,8 +63,9 @@ def local_window(constraints) -> str:
     tz = ZoneInfo(constraints.timezone)
     start, end = instant(constraints.window_start).astimezone(tz), instant(constraints.window_end).astimezone(tz)
     def clock(dt):
-        return dt.strftime("%-I:%M %p").replace(":00", "").lower()
-    return f"{start.strftime('%A %b %-d')}, {clock(start)}–{clock(end)} {start.tzname()}"
+        # Portable: %-I / %-d are glibc-only and raise ValueError on Windows.
+        return f"{dt.hour % 12 or 12}{dt.strftime(':%M %p')}".replace(":00", "").lower()
+    return f"{start.strftime('%A %b')} {start.day}, {clock(start)}–{clock(end)} {start.tzname()}"
 
 
 def trusted_provider_id(provider_id: str) -> str:

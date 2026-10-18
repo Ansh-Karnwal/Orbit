@@ -52,7 +52,10 @@ export function useTaskStream(id: string) {
     refreshRef.current = fetchView;
     const connect = () => {
       if (disposed) return;
-      source = new EventSource(api.eventsUrl(id, lastSeq));
+      // withCredentials: the sign-in cookie scopes the stream to the task's owner.
+      source = new EventSource(api.eventsUrl(id, lastSeq), {
+        withCredentials: true,
+      });
       source.onopen = () => {
         retry = 0;
         setConnection("connected");

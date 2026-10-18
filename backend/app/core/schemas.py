@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 def utcnow() -> datetime:
@@ -87,6 +87,16 @@ AdapterName = Literal[
 EvidenceKind = Literal[
     "message_out", "message_in", "delivery_receipt", "screenshot", "browser_trace",
     "availability", "portal_confirmation", "creao_output",
+    "user_decision",                      # a user's reject/answer, so facts it changes cite it
+]
+
+# Machine-readable reason behind Task.status (roadmap F3). BLOCKED always carries a specific one.
+ReasonCode = Literal[
+    "draft", "planning", "running", "awaiting_approval", "waiting_on_providers", "verifying",
+    "completed", "cancelled", "failed",
+    "no_eligible_provider", "user_rejected_all", "verification_failed", "verification_pending",
+    "booking_unknown", "terms_changed_after_booking", "budget_exceeded", "integration_blocked",
+    "step_failed",
 ]
 
 
@@ -101,12 +111,19 @@ class Constraints(BaseModel):
     require_cancellation_terms: bool = True
     approval_policy: Literal["before_booking"] = "before_booking"
 
+    @field_validator("window_start", "window_end")
+    @classmethod
+    def _to_utc(cls, v: datetime) -> datetime:
+        # Aware input is normalised to UTC (serialised with Z); naive input is left for the
+        # intake check to reject with a readable message.
+        return v.astimezone(timezone.utc) if v.tzinfo is not None else v
+
 
 class Limits(BaseModel):
-    max_tool_actions: int = 40
-    max_runtime_s: int = 1800
-    max_llm_calls: int = 60
-    reply_timeout_s: int = 600
+    max_tool_actions: int = Field(40, gt=0)
+    max_runtime_s: int = Field(1800, gt=0)
+    max_llm_calls: int = Field(60, gt=0)
+    reply_timeout_s: int = Field(600, gt=0)
 
 
 class ProviderSpec(BaseModel):
@@ -125,6 +142,7 @@ class TaskCreate(BaseModel):
     mode: Mode = "fixture"
     source: Literal["manual", "creao", "demo_seed"] = "manual"
     creao_ref: str | None = None
+    user_contact: str | None = None          # where Orbit reports to the user (roadmap G4)
 
 
 class Task(BaseModel):
@@ -135,9 +153,12 @@ class Task(BaseModel):
     mode: Mode
     status: TaskStatus
     status_reason: str = ""
+    reason_code: ReasonCode | None = None
     source: str = "manual"
     creao_ref: str | None = None
     summary: str | None = None
+    owner_id: str = "demo_user"
+    user_contact: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -272,7 +293,10 @@ class Approval(BaseModel):
 class ApprovalDecisionIn(BaseModel):
     proposal_hash: str
     decision: Literal["approved", "rejected"]
-    approver: str = "demo_user"
+    approver: str = "demo_user"              # ignored by the API: the signed-in user decides
+    # Rejection only: "provider" = don't use this provider; "proposal" = not this time slot.
+    scope: Literal["provider", "proposal"] = "provider"
+    reason: str | None = Field(None, max_length=300)
 
 
 # ---------------------------------------------------------------- evidence
@@ -308,6 +332,8 @@ class SendResult(BaseModel):
     status: Literal["submitted", "delivered", "failed"]
     evidence_ids: list[str] = Field(default_factory=list)
     error: str | None = None
+    # Failures retrying can't fix: "must_text_first" (Photon shared line), "recipient_not_allowed".
+    error_code: str | None = None
 
 
 class Slot(BaseModel):
@@ -358,6 +384,46 @@ class VerificationResult(BaseModel):
     created_at: datetime
 
 
+# ---------------------------------------------------------------- questions, services, users
+class QuestionOption(BaseModel):
+    id: str                                   # raise_budget | widen_window | reconsider | add_provider
+                                              # | retry | check_again | extend_limits | stop
+    label: str
+    params: dict[str, Any] = Field(default_factory=dict)   # hints, e.g. current values / choices
+
+
+class OpenQuestion(BaseModel):
+    question_id: str
+    text: str
+    reason_code: ReasonCode
+    options: list[QuestionOption]
+    asked_at: datetime
+
+
+class AnswerIn(BaseModel):
+    question_id: str
+    choice: str
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class ServiceInfo(BaseModel):
+    id: str                                   # "dishwasher_repair"
+    label: str
+    pack: str                                 # "home_repair/v1"
+    description: str = ""
+
+
+class UserInfo(BaseModel):
+    user_id: str
+    display_name: str
+    authenticated: bool                       # False = the implicit demo user
+    auth_mode: Literal["demo", "required"]
+
+
+class LoginIn(BaseModel):
+    display_name: str = Field(min_length=1, max_length=60)
+
+
 # ---------------------------------------------------------------- timeline & views
 class TimelineEvent(BaseModel):
     id: str
@@ -381,6 +447,8 @@ class TaskView(BaseModel):
     verification: VerificationResult | None
     timeline: list[TimelineEvent]             # last 200, ascending seq
     integrations: dict[str, str]              # {"photon": "live" | "fixture" | "blocked: reason", ...}
+    provider_summaries: dict[str, str] = Field(default_factory=dict)   # provider_id -> one line
+    open_question: OpenQuestion | None = None  # latest unanswered question (BLOCKED only)
 
 
 class DemoInjectIn(BaseModel):

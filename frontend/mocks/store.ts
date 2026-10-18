@@ -1,9 +1,12 @@
 import type {
+  AnswerIn,
   ApprovalDecisionIn,
   DemoInjectIn,
   PortalFaultIn,
+  ProviderSpec,
   TaskCreate,
   TaskView,
+  UserInfo,
 } from "@/lib/types";
 import { ApiError, StaleProposalError } from "@/lib/errors";
 import { buildStory, demoSeed } from "./scenario";
@@ -57,8 +60,54 @@ function extra(id: string, type: string, message: string) {
     at: new Date().toISOString(),
   });
 }
+const DEMO_USER: UserInfo = {
+  user_id: "demo_user",
+  display_name: "Demo user",
+  authenticated: false,
+  auth_mode: "demo",
+};
 export const mock = {
   seed: demoSeed,
+  sandboxProviders(): ProviderSpec[] {
+    return [
+      ...demoSeed().providers,
+      {
+        id: "provider_c",
+        name: "Coastal Appliance Pros",
+        channel: "fixture",
+        handle: "fixture:provider_c",
+        portal_url: "http://localhost:8100/p/provider_c",
+      },
+    ];
+  },
+  me(): UserInfo {
+    if (typeof sessionStorage === "undefined") return DEMO_USER;
+    const saved = sessionStorage.getItem("orbit:user");
+    return saved ? (JSON.parse(saved) as UserInfo) : DEMO_USER;
+  },
+  login(display_name: string): UserInfo {
+    // Tab-local only: the offline mock has no server to hold a session.
+    const user: UserInfo = {
+      user_id: `u_${display_name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      display_name: display_name.trim(),
+      authenticated: true,
+      auth_mode: "demo",
+    };
+    sessionStorage.setItem("orbit:user", JSON.stringify(user));
+    return user;
+  },
+  logout(): UserInfo {
+    sessionStorage.removeItem("orbit:user");
+    return DEMO_USER;
+  },
+  answer(id: string, body: AnswerIn) {
+    if (body.choice !== "stop")
+      throw new ApiError(
+        409,
+        "The offline mock can only stop here. Run with the backend (NEXT_PUBLIC_USE_MOCKS=0) to let Orbit look for other options.",
+      );
+    return mock.cancel(id);
+  },
   get(id: string): TaskView {
     const r = run(id);
     const v = structuredClone(r.snapshots[r.index]);
@@ -131,11 +180,20 @@ export const mock = {
     approval.approver = body.approver;
     approval.decided_at = new Date().toISOString();
     if (body.decision === "rejected") {
+      // The scripted story can't re-coordinate; say so instead of faking it.
       r.stopped = true;
       v.task.status = "BLOCKED";
+      v.task.reason_code = "user_rejected_all";
       v.task.status_reason =
-        "Proposal rejected. Reset the offline story to try again.";
+        "You declined this option. Finding another runs on the backend; the offline story stops here.";
       v.current_proposal = null;
+      v.open_question = {
+        question_id: `q_mock_${approval.id}`,
+        text: v.task.status_reason,
+        reason_code: "user_rejected_all",
+        options: [{ id: "stop", label: "Stop here", params: {} }],
+        asked_at: new Date().toISOString(),
+      };
     } else if (r.index === 4) r.index = 5;
     else {
       r.index = 3;

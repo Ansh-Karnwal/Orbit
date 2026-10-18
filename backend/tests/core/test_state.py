@@ -29,8 +29,10 @@ def test_set_status_enforces_table_and_emits(task):
     t = repo.set_status(task.id, S.RUNNING)
     assert t.status == S.RUNNING
     changes = [e.data for e in repo.list_timeline(task.id) if e.type == "task.status_changed"]
-    assert changes == [{"from": "DRAFT", "to": "PLANNING", "reason": "planning"},
-                       {"from": "PLANNING", "to": "RUNNING", "reason": ""}]
+    assert changes == [{"from": "DRAFT", "to": "PLANNING", "reason": "planning",
+                        "reason_code": "planning"},
+                       {"from": "PLANNING", "to": "RUNNING", "reason": "", "reason_code": "running"}]
+    assert repo.get_task(task.id).reason_code == "running"
     # same status again: no new event
     repo.set_status(task.id, S.RUNNING, "still running")
     assert len([e for e in repo.list_timeline(task.id) if e.type == "task.status_changed"]) == 2

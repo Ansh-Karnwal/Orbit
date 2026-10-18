@@ -12,6 +12,10 @@ class Settings(BaseSettings):
 
     orbit_mode: Literal["fixture", "live"] = "fixture"
     orbit_allow_reset: bool = True
+    # demo: no sign-in needed (anonymous = demo_user); required: 401 until signed in.
+    orbit_auth_mode: Literal["demo", "required"] = "demo"
+    # Let the task owner approve/decline by texting "YES <hash8>" / "NO <hash8>". Off by default.
+    orbit_text_approvals: bool = False
     database_url: str = "sqlite:///./orbit.db"
     artifact_dir: str = "./artifacts"
 
@@ -25,6 +29,7 @@ class Settings(BaseSettings):
     photon_bridge_url: str = "http://localhost:8200"
     live_provider_a_handle: str = ""
     live_provider_b_handle: str = ""
+    live_user_handle: str = ""             # the demo user's own number, for Orbit's reports
 
     browser_mode: Literal["fixture", "browser_use"] = "fixture"
     browser_use_api_key: str = ""

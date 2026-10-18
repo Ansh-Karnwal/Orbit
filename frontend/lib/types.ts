@@ -54,7 +54,28 @@ export type EvidenceKind =
   | "browser_trace"
   | "availability"
   | "portal_confirmation"
-  | "creao_output";
+  | "creao_output"
+  | "user_decision";
+/** Machine-readable reason behind Task.status (backend schemas.ReasonCode). */
+export type ReasonCode =
+  | "draft"
+  | "planning"
+  | "running"
+  | "awaiting_approval"
+  | "waiting_on_providers"
+  | "verifying"
+  | "completed"
+  | "cancelled"
+  | "failed"
+  | "no_eligible_provider"
+  | "user_rejected_all"
+  | "verification_failed"
+  | "verification_pending"
+  | "booking_unknown"
+  | "terms_changed_after_booking"
+  | "budget_exceeded"
+  | "integration_blocked"
+  | "step_failed";
 export interface Constraints {
   service: string;
   window_start: string;
@@ -86,6 +107,8 @@ export interface TaskCreate {
   mode: Mode;
   source: "manual" | "creao" | "demo_seed";
   creao_ref: string | null;
+  /** Where Orbit texts the user about approvals, questions and completion. */
+  user_contact?: string | null;
 }
 export interface Task {
   id: string;
@@ -95,9 +118,12 @@ export interface Task {
   mode: Mode;
   status: TaskStatus;
   status_reason: string;
+  reason_code?: ReasonCode | null;
   source: string;
   creao_ref: string | null;
   summary: string | null;
+  owner_id?: string;
+  user_contact?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -219,7 +245,11 @@ export interface Approval {
 export interface ApprovalDecisionIn {
   proposal_hash: string;
   decision: "approved" | "rejected";
+  /** Ignored by the backend: the signed-in user is the approver. */
   approver: string;
+  /** Rejection only: "provider" = not this provider; "proposal" = not this time. */
+  scope?: "provider" | "proposal";
+  reason?: string | null;
 }
 export interface ConfirmationExtract {
   confirmation_id: string;
@@ -250,6 +280,7 @@ export interface SendResult {
   status: "submitted" | "delivered" | "failed";
   evidence_ids: string[];
   error: string | null;
+  error_code?: string | null;
 }
 export interface Slot {
   start: string;
@@ -313,6 +344,48 @@ export interface TaskView {
   verification: VerificationResult | null;
   timeline: TimelineEvent[];
   integrations: Record<string, string>;
+  /** provider_id -> one deterministic line built from active facts. */
+  provider_summaries?: Record<string, string>;
+  /** The question Orbit is waiting on (only while BLOCKED). */
+  open_question?: OpenQuestion | null;
+}
+export interface QuestionOption {
+  id:
+    | "raise_budget"
+    | "widen_window"
+    | "reconsider"
+    | "add_provider"
+    | "retry"
+    | "check_again"
+    | "extend_limits"
+    | "stop";
+  label: string;
+  params: Record<string, unknown>;
+}
+export interface OpenQuestion {
+  question_id: string;
+  text: string;
+  reason_code: ReasonCode;
+  options: QuestionOption[];
+  asked_at: string;
+}
+export interface AnswerIn {
+  question_id: string;
+  choice: QuestionOption["id"];
+  params: Record<string, unknown>;
+}
+export interface ServiceInfo {
+  id: string;
+  label: string;
+  pack: string;
+  description: string;
+}
+export interface UserInfo {
+  user_id: string;
+  display_name: string;
+  /** false = the implicit demo user (nobody signed in). */
+  authenticated: boolean;
+  auth_mode: "demo" | "required";
 }
 export interface DemoInjectIn {
   task_id: string;

@@ -35,7 +35,8 @@ export const taskCreateSchema = z
           portal_url: z.url().nullable().default(null),
         }),
       )
-      .min(1),
+      .min(1, "Add at least one provider")
+      .max(10, "At most 10 providers per task"),
     limits: z
       .object({
         max_tool_actions: z.number().int().positive().default(40),
@@ -52,6 +53,13 @@ export const taskCreateSchema = z
     mode: z.enum(["fixture", "live"]).default("fixture"),
     source: z.enum(["manual", "creao", "demo_seed"]).default("manual"),
     creao_ref: z.string().nullable().default(null),
+    user_contact: z
+      .string()
+      .trim()
+      .min(1)
+      .nullable()
+      .optional()
+      .transform((v) => v ?? null),
   })
   .superRefine((data, ctx) => {
     if (
@@ -74,6 +82,15 @@ export const taskCreateSchema = z
         code: "custom",
         path: ["providers"],
         message: "Provider IDs must be unique",
+      });
+    if (
+      data.user_contact &&
+      data.providers.some((p) => p.handle === data.user_contact)
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["user_contact"],
+        message: "Your contact can't be one of the providers' handles",
       });
     if (
       data.mode === "live" &&

@@ -1,5 +1,13 @@
-import { Check, Clock3, ExternalLink, TriangleAlert } from "lucide-react";
+import {
+  Check,
+  Clock3,
+  ExternalLink,
+  Star,
+  TriangleAlert,
+  UserX,
+} from "lucide-react";
 import { localRange, money, safeWording } from "@/lib/format";
+import { providerAccent } from "@/lib/labels";
 import type { ContextFact, ProviderSpec, TaskView } from "@/lib/types";
 function factValue(fact: ContextFact, tz: string): string {
   if (fact.key.endsWith("_cents") && typeof fact.value === "number")
@@ -87,15 +95,30 @@ export function ProviderCard({
   provider,
   view,
   onEvidence,
+  accent,
+  proposed = false,
 }: {
   provider: ProviderSpec;
   view: TaskView;
   onEvidence: (id: string) => void;
+  accent?: number;
+  proposed?: boolean;
 }) {
   const facts = view.facts.filter((f) => f.key.startsWith(`${provider.id}.`)),
     reasons = view.eligibility[provider.id],
-    known = !!reasons,
-    eligible = known && reasons.length === 0;
+    replied = facts.some(
+      (f) => !f.key.endsWith(".declined_by_user") && !f.key.endsWith(".declined_slots"),
+    ),
+    known = !!reasons && replied,
+    eligible = known && reasons.length === 0,
+    declined = !!reasons?.some((r) => /declined by you/i.test(r)),
+    summary = view.provider_summaries?.[provider.id],
+    chosen =
+      proposed &&
+      view.approvals.some(
+        (a) => a.status === "approved" && a.proposal.provider_id === provider.id,
+      ),
+    index = accent ?? view.providers.findIndex((p) => p.id === provider.id);
   const visitChargeFacts = facts.filter((f) => f.key === `${provider.id}.visit_charge_cents`);
   const fields = [
     ["fee_scope", "Includes"],
@@ -104,30 +127,49 @@ export function ProviderCard({
   ];
   return (
     <article
-      className={`card provider-card ${reasons?.some((r) => /budget/i.test(r)) ? "over-budget" : ""}`}
+      className={`card provider-card ${reasons?.some((r) => /budget/i.test(r)) ? "over-budget" : ""} ${proposed ? "proposed" : ""} ${declined ? "declined" : ""}`}
     >
       <div className="row between provider-header">
         <div className="row provider-identity">
-          <span
-            className={`provider-initial ${provider.id === "provider_b" ? "provider-b" : ""}`}
-          >
+          <span className={`provider-initial ${providerAccent(Math.max(index, 0))}`}>
             {provider.name.charAt(0)}
           </span>
           <div>
             <h3>{provider.name}</h3>
           </div>
         </div>
-        <span className={`badge ${eligible ? "green" : known ? "amber" : ""}`}>
-          {eligible ? (
+        <span
+          className={`badge ${proposed ? "blue" : declined ? "" : eligible ? "green" : known ? "amber" : ""}`}
+        >
+          {proposed ? (
+            <Star size={13} />
+          ) : declined ? (
+            <UserX size={13} />
+          ) : eligible ? (
             <Check size={13} />
           ) : known ? (
             <TriangleAlert size={13} />
           ) : (
             <Clock3 size={13} />
           )}{" "}
-          {eligible ? "Eligible" : known ? "Review" : "Inquiring"}
+          {proposed
+            ? chosen
+              ? "Chosen"
+              : "Proposed"
+            : declined
+              ? "Declined"
+              : eligible
+                ? "Eligible"
+                : known
+                  ? "Review"
+                  : "Inquiring"}
         </span>
       </div>
+      {summary && (
+        <p className="provider-summary">
+          {safeWording(summary, view.verification?.verdict)}
+        </p>
+      )}
 
       {visitChargeFacts.length > 0 && (
         <div className="provider-pricing-highlight">
@@ -152,7 +194,7 @@ export function ProviderCard({
         </div>
       )}
 
-      {facts.length === 0 ? (
+      {!replied ? (
         <p className="empty">Awaiting provider response…</p>
       ) : (
         <dl className="provider-facts">

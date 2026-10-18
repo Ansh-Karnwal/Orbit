@@ -47,10 +47,10 @@ async def extract_provider_facts(task_id: str, provider_id: str, text: str, sour
     step = PlanStep(id=new_id("stp"), task_id=task_id, kind=StepKind.EXTRACT_QUOTE,
                     provider_id=provider_id, idempotency_key=f"extract:{source_id}", created_at=now, updated_at=now)
     packet = assemble(task_id, step)
-    fallback = parse_quote(text)
+    fallback = parse_quote(text, task.constraints.service)
     try:
         quote = await structured(ProviderQuoteExtraction,
-            system=(Path(__file__).parents[1] / "llm/prompts/extract.txt").read_text(),
+            system=(Path(__file__).parents[1] / "llm/prompts/extract.txt").read_text(encoding="utf-8"),
             instructions="Extract the provider's current message. Trusted task constraints: " +
                          task.constraints.model_dump_json() + ". Only return quote data.",
             untrusted=[text, json.dumps({"provider_facts": [f.model_dump(mode="json") for f in packet.facts]})], task_id=task_id)

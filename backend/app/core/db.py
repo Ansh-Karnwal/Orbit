@@ -45,9 +45,13 @@ class TaskRow(Base):
     mode: Mapped[str]
     status: Mapped[str] = mapped_column(index=True)
     status_reason: Mapped[str] = mapped_column(Text, default="")
+    reason_code: Mapped[str | None]
     source: Mapped[str] = mapped_column(default="manual")
     creao_ref: Mapped[str | None]
     summary: Mapped[str | None] = mapped_column(Text)
+    owner_id: Mapped[str] = mapped_column(default="demo_user", server_default="demo_user",
+                                          index=True)
+    user_contact: Mapped[str | None]
     created_at: Mapped[datetime]
     updated_at: Mapped[datetime]
 
@@ -190,6 +194,15 @@ class BudgetCounterRow(Base):
     llm_calls: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class SessionRow(Base):
+    """Demo sign-in sessions (roadmap E). A real identity provider replaces how these are made."""
+    __tablename__ = "sessions"
+    token: Mapped[str] = mapped_column(primary_key=True)
+    user_id: Mapped[str] = mapped_column(index=True)
+    display_name: Mapped[str]
+    created_at: Mapped[datetime]
+
+
 Index("ix_facts_task_key_version", FactRow.task_id, FactRow.key, FactRow.version)
 
 
@@ -223,6 +236,22 @@ def _make_engine(url: str) -> Engine:
     return engine
 
 
+def _add_missing_columns(engine: Engine) -> None:
+    """Additive migration: columns added to a model after a DB file was created get ALTERed in
+    (nullable or with a server default). Never drops or rewrites anything."""
+    with engine.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            have = {r[1] for r in conn.exec_driver_sql(f'PRAGMA table_info("{table.name}")')}
+            for col in table.columns:
+                if col.name in have:
+                    continue
+                ddl = f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" ' \
+                      f'{col.type.compile(engine.dialect)}'
+                if col.server_default is not None:
+                    ddl += f" DEFAULT '{col.server_default.arg}'"
+                conn.exec_driver_sql(ddl)
+
+
 def init_db(url: str | None = None) -> None:
     """Create (or reuse) the engine for `url` (default: settings.database_url) and create tables."""
     global _engine, _sessionmaker
@@ -233,6 +262,7 @@ def init_db(url: str | None = None) -> None:
         _engine = _make_engine(url)
         _sessionmaker = sessionmaker(_engine, expire_on_commit=False)
     Base.metadata.create_all(_engine)
+    _add_missing_columns(_engine)
 
 
 def reset_db() -> None:

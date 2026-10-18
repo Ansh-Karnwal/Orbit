@@ -1,19 +1,17 @@
 """Owner: Victor. FastAPI app wiring. Shared file — changes go through Victor."""
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
 from app.adapters import photon_routes, registry
-from app.core import db, recovery, telemetry, worker
+from app.core import auth, db, errors, recovery, telemetry, worker
 from app.core.api import demo, tasks
 from app.core.config import get_settings
 from app.core.logs import setup_logging
-from app.core.repo import NotFound
-from app.core.state import IllegalTransition
 
 setup_logging()
 telemetry.init()                       # no-op without SENTRY_DSN; must precede FastAPI()
@@ -31,23 +29,16 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Orbit", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
+    # Deployed origins come from env (comma-separated); localhost:3000 is the dev frontend.
+    allow_origins=[o.strip() for o in os.environ.get("ORBIT_CORS_ORIGINS",
+                                                     "http://localhost:3000").split(",") if o.strip()],
+    allow_credentials=True,            # the sign-in cookie
     allow_methods=["*"],
     allow_headers=["*"],
 )
+errors.install(app)                    # one error envelope for every non-2xx response
 
-
-@app.exception_handler(NotFound)
-async def _not_found(_: Request, exc: NotFound) -> JSONResponse:
-    return JSONResponse(status_code=404, content={"detail": str(exc.args[0]) if exc.args else "not found"})
-
-
-@app.exception_handler(IllegalTransition)
-async def _illegal(_: Request, exc: IllegalTransition) -> JSONResponse:
-    return JSONResponse(status_code=409, content={"detail": str(exc)})
-
-
+app.include_router(auth.router)
 app.include_router(tasks.router)
 app.include_router(demo.router)
 if photon_routes.router is not None:
@@ -56,5 +47,7 @@ if photon_routes.router is not None:
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "mode": get_settings().orbit_mode,
+    s = get_settings()
+    return {"ok": True, "mode": s.orbit_mode, "auth_mode": s.orbit_auth_mode,
+            "text_approvals": s.orbit_text_approvals,
             "integrations": registry.integration_status()}

@@ -1,8 +1,47 @@
 """Evidence-bound final language; no model can inflate the claim level."""
 from app.core import repo
 from app.core.schemas import VerificationResult, Verdict
+from app.context.conflicts import current_facts
+from app.context.decisions import eligibility_for, open_slots
 from app.context.proposals import approval_still_valid, eligibility
 from app.context.values import local_window, money
+
+SCOPES = {"diagnostic_visit_including_travel": "diagnostic visit incl. travel",
+          "diagnostic_visit_excluding_travel": "diagnostic visit, travel extra",
+          "flat_repair": "fixed repair price", "unknown": "scope unclear"}
+
+
+def provider_summaries(task_id: str) -> dict[str, str]:
+    """One deterministic line per provider, built only from active facts (no model)."""
+    task, providers, facts = repo.get_task(task_id), repo.get_providers(task_id), repo.list_facts(task_id)
+    reasons = eligibility_for(task, providers, facts)
+    active = current_facts(facts)
+    out = {}
+    for p in providers:
+        pf = {k.split(".", 1)[1]: f for k, f in active.items() if k.startswith(p.id + ".")}
+        quote = {k: v for k, v in pf.items() if k not in {"declined_by_user", "declined_slots"}}
+        if not quote:
+            out[p.id] = "Waiting for a reply"
+            continue
+        if "no_reply" in pf and pf["no_reply"].value is True and len(quote) == 1:
+            out[p.id] = "No reply"
+            continue
+        parts = []
+        if "visit_charge_cents" in pf:
+            scope = SCOPES.get(pf["fee_scope"].value, "") if "fee_scope" in pf else ""
+            parts.append(money(pf["visit_charge_cents"].value) + (f" ({scope})" if scope else ""))
+        if "slots_offered" in pf:
+            n = len(open_slots(task, pf))
+            parts.append(f"{n} open time{'s' if n != 1 else ''} in your window")
+        if "cancellation_terms" in pf:
+            terms = pf["cancellation_terms"].value
+            parts.append(terms if len(terms) <= 70 else terms[:67].rstrip() + "…")
+        if "repair_cost_known" in pf and pf["repair_cost_known"].value is False:
+            parts.append("parts & labor quoted after diagnosis")
+        if reasons[p.id]:
+            parts.append("Not eligible: " + reasons[p.id][0])
+        out[p.id] = " · ".join(parts) or "Replied; no quote details yet"
+    return out
 
 
 async def summarize(task_id: str, verification: VerificationResult) -> str:

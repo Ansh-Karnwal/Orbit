@@ -30,11 +30,12 @@ from app.context import facts as ctx_facts
 from app.context import proposals as ctx_proposals
 from app.context import summary as ctx_summary
 from app.context.domain import load_pack
-from app.core import budgets, planner, repo, telemetry
+from app.core import budgets, planner, questions, repo, telemetry
 from app.core import evidence as core_evidence
+from app.core.config import get_settings
 from app.core.schemas import (TERMINAL_STATUSES, AvailabilityResult, BookingRequest, BookingResult,
-                              Conflict, IngestResult, PlanStep, StepKind as K, StepState, Task,
-                              TaskStatus as S, ToolAction, Verdict, new_id, utcnow)
+                              Conflict, IngestResult, PlanStep, ProviderSpec, StepKind as K,
+                              StepState, Task, TaskStatus as S, ToolAction, Verdict, new_id, utcnow)
 from app.core.state import ALLOWED, CompletionGateError
 from app.verify import verifier
 
@@ -57,6 +58,7 @@ class Outcome:
     replan: str | None = None    # reason; replan runs after the wave
     facts_changed: bool = False
     exc: BaseException | None = None   # underlying error, for telemetry
+    code: str | None = None      # ReasonCode when blocking (default: step_failed)
 
 
 def _ok(result: dict | None = None, *, facts_changed: bool = False) -> Outcome:
@@ -111,13 +113,14 @@ def _deps_done(step: PlanStep, by_id: dict[str, PlanStep]) -> bool:
 
 def _derive_status(task_id: str) -> None:
     task = repo.get_task(task_id)
-    if task.status in TERMINAL_STATUSES:
+    if task.status in TERMINAL_STATUSES or _paused(task_id):
         return
     steps = repo.list_steps(task_id)
     active = _active(steps)
     if not active:
         if task.status != S.BLOCKED:
-            _move(task_id, S.BLOCKED, task.status_reason or "nothing left to run")
+            questions.ask(task_id, "Orbit has nothing left it can do on its own for this task.",
+                          "step_failed")
         return
     by_id = {s.id: s for s in steps}
     running = {s.kind for s in active if s.state == StepState.RUNNING}
@@ -278,6 +281,13 @@ async def _send_inquiry(task: Task, step: PlanStep) -> Outcome:
         r, error, exc = None, f"{type(e).__name__}: {e}", e
     if error is not None:
         _finish_action(action, "failed", result={"error": error})
+        if r is not None and r.error_code in ("must_text_first", "recipient_not_allowed"):
+            # Retrying can't fix setup problems: ask the user instead of looping (Photon shared line).
+            fix = (f"{p.name} must text the Orbit line once before Orbit can message them."
+                   if r.error_code == "must_text_first" else
+                   f"{p.name}'s handle isn't on Orbit's allowed list for live messaging.")
+            return Outcome("failed", error=error, code="integration_blocked",
+                           question=fix + " Then choose Try again.")
         if step.attempts >= step.max_attempts:
             res = ctx_facts.ingest_fact(task.id, f"{p.id}.no_reply", True,
                                         source_id=_orbit_observation(task, p.id, step, "send_failed"))
@@ -416,11 +426,13 @@ async def _request_approval(task: Task, step: PlanStep) -> Outcome:
     if a.status == "approved":
         return _ok({"approval_id": a.id, "proposal_hash": a.proposal_hash})
     if a.status == "rejected":
-        return Outcome("failed", error="proposal rejected",
-                       question=f"You declined {a.proposal.provider_name} at "
-                                f"{_usd(a.proposal.visit_charge_cents)}. Should Orbit change the "
-                                "constraints (budget or time window) or stop here?")
-    return Outcome("skipped", error=a.invalidated_reason or f"approval {a.status}")
+        # approvals.decide already recorded the decline as a fact; look for the next option.
+        return Outcome("skipped", error=f"you declined {a.proposal.provider_name}",
+                       replan=f"you declined {a.proposal.provider_name}; looking for another option")
+    # Withdrawn or expired. Whoever withdrew it usually replanned already (and skipped this step);
+    # if not (e.g. withdrawn while blocking), replan now so the plan always moves on.
+    why = a.invalidated_reason or f"approval {a.status}"
+    return Outcome("skipped", error=why, replan=f"approval withdrawn: {why}")
 
 
 async def _submit_booking(task: Task, step: PlanStep) -> Outcome:
@@ -502,6 +514,21 @@ def _booking_done(task: Task, step: PlanStep, action: ToolAction, req: BookingRe
                "resubmitted": resubmitted, "is_fixture": is_fixture})
     return _ok({"orbit_ref": req.orbit_ref, "approval_id": req.approval_id,
                 "booking": r.model_dump(mode="json")})
+
+
+def add_check_again_chain(task_id: str) -> bool:
+    """User answer "check again": look the booking up again (if one was submitted), re-verify and
+    summarize. Never resubmits — the reconcile step only resubmits when no resubmit happened yet,
+    and it always looks first. Returns False if there's nothing to check."""
+    steps = repo.list_steps(task_id)
+    anchors = [s for s in steps if s.kind in (K.VERIFY, K.RECONCILE_BOOKING)
+               and s.state == StepState.FAILED]
+    subs = _submit_actions(task_id)
+    if not anchors or not subs:
+        return False
+    _add_reconcile_chain(task_id, anchors[-1], subs[-1].idempotency_key,
+                         "you asked Orbit to check the booking again")
+    return True
 
 
 def reconcile_interrupted_booking(task: Task, step: PlanStep, action: ToolAction, why: str) -> None:
@@ -592,12 +619,13 @@ async def _reconcile_booking(task: Task, step: PlanStep) -> Outcome:
                 return Outcome("failed", error=f"{type(e).__name__}: {e}", retryable=True, exc=e)
             if _is_booked(again):
                 return _adopt_booking(task, step, re_prior, again, p, req.orbit_ref)
-        return Outcome("failed", error="booking state unknown after resubmission", question=unknown_q)
+        return Outcome("failed", error="booking state unknown after resubmission", question=unknown_q,
+                       code="booking_unknown")
     approval = repo.get_approval(req.approval_id)
     valid, why = ctx_proposals.approval_still_valid(task.id)
     if approval.status != "approved" or not valid:
         return Outcome("failed", error=f"not resubmitting: {why or 'approval not current'}",
-                       question=unknown_q)
+                       question=unknown_q, code="booking_unknown")
     repo.emit(task.id, "booking.reconciled",
               f"No booking found for {req.orbit_ref}; resubmitting once with the same reference",
               {"provider_id": p.id, "step_id": step.id, "orbit_ref": req.orbit_ref,
@@ -609,15 +637,17 @@ async def _reconcile_booking(task: Task, step: PlanStep) -> Outcome:
     except Exception as e:  # noqa: BLE001
         _finish_action(action, "ambiguous", result={"error": f"{type(e).__name__}: {e}"})
         return Outcome("failed", error=f"resubmission unclear: {type(e).__name__}", retryable=True,
-                       question=unknown_q, exc=e)
+                       question=unknown_q, exc=e, code="booking_unknown")
     if r.status in ("confirmed", "submitted_unconfirmed"):
         return _booking_done(task, step, action, req, r, resubmitted=True)
     if r.status == "ambiguous":
         _finish_action(action, "ambiguous", result=r.model_dump(mode="json"),
                        evidence_ids=r.evidence_ids)
-        return Outcome("failed", error="resubmission unclear", retryable=True, question=unknown_q)
+        return Outcome("failed", error="resubmission unclear", retryable=True, question=unknown_q,
+                       code="booking_unknown")
     _finish_action(action, "failed", result=r.model_dump(mode="json"), evidence_ids=r.evidence_ids)
-    return Outcome("failed", error=f"resubmission failed: {r.error or r.status}", question=unknown_q)
+    return Outcome("failed", error=f"resubmission failed: {r.error or r.status}", question=unknown_q,
+                   code="booking_unknown")
 
 
 async def _verify(task: Task, step: PlanStep) -> Outcome:
@@ -631,13 +661,20 @@ async def _verify(task: Task, step: PlanStep) -> Outcome:
     if v.verdict == Verdict.PASS:
         return _ok({"verification_id": v.id, "verdict": v.verdict.value})
     if v.verdict == Verdict.FAIL:
-        return Outcome("failed", error=f"verification failed: {v.explanation}")
+        return Outcome("failed", error=f"verification failed: {v.explanation}",
+                       code="verification_failed",
+                       question=f"The booking doesn't match what you approved: {v.explanation} "
+                                "Orbit won't call it handled. Check again, or stop and contact "
+                                "the provider.")
     uncertain = _uncertain_booking(task.id)
     if uncertain is not None and _reconcile_count(repo.list_steps(task.id)) < MAX_RECONCILES:
         _add_reconcile_chain(task.id, step, uncertain.idempotency_key,
                              "insufficient evidence for an unconfirmed booking")
         return Outcome("failed", error="insufficient evidence; reconciling booking", block=False)
-    return Outcome("failed", error=f"verification pending: {v.explanation}")
+    return Outcome("failed", error=f"verification pending: {v.explanation}",
+                   code="verification_pending",
+                   question="Orbit can't yet prove the booking went through, so it isn't marked "
+                            f"handled. {v.explanation} Check again later, or stop.")
 
 
 async def _summarize(task: Task, step: PlanStep) -> Outcome:
@@ -650,7 +687,7 @@ async def _summarize(task: Task, step: PlanStep) -> Outcome:
     try:
         repo.set_status(task.id, S.COMPLETED, "handled: booking verified")
     except CompletionGateError as e:
-        return Outcome("failed", error=f"completion gate: {e}")
+        return Outcome("failed", error=f"completion gate: {e}", code="verification_pending")
     repo.emit(task.id, "task.completed", "Handled. Booking verified against the approved terms.",
               {"verification_id": v.id, "approval_id": v.approval_id, "summary": text})
     return _ok({"verification_id": v.id})
@@ -714,22 +751,32 @@ def _apply(task_id: str, step_id: str, out: Outcome) -> None:
               {**data, "error": out.error, "attempt": cur.attempts, "retrying": False})
     if out.block:
         question = out.question or (
-            f"Orbit couldn't {_label(cur)} after {cur.attempts} attempts ({out.error}). "
-            "Retry later or cancel?" if out.retryable else None)
-        if question:
-            repo.emit(task_id, "question.asked", question, {**data, "question": question})
-        _move(task_id, S.BLOCKED, question or out.error or "step failed")
+            f"Orbit couldn't {_label(cur)} after {cur.attempts} attempt"
+            f"{'s' if cur.attempts != 1 else ''} ({out.error}). Try again, or stop?")
+        questions.ask(task_id, question, out.code or "step_failed", data)
 
 
 # ---------------------------------------------------------------- tick
+INBOUND_MAX_ATTEMPTS = 3
+
+
+def _paused(task_id: str) -> bool:
+    """BLOCKED with an unanswered question: nothing runs until the user answers."""
+    return (repo.get_task(task_id).status == S.BLOCKED
+            and questions.open_question(task_id) is not None)
+
+
 async def _process_inbound(task_id: str) -> bool:
-    """Extract late updates (provider's quote step already done). Returns True if facts changed."""
+    """Extract late updates (provider's quote step already done). Returns True if facts changed.
+    Extraction errors back off (min(2**n, 30) s) like any transient step; after
+    INBOUND_MAX_ATTEMPTS Orbit stops trusting that provider's terms and asks the user."""
     pending = repo.list_unprocessed_inbound(task_id)
     if not pending:
         return False
     steps = repo.list_steps(task_id)
     open_extract = {s.provider_id for s in _active(steps) if s.kind == K.EXTRACT_QUOTE}
     changed = False
+    now = utcnow()
     for ev in pending:
         pid = ev.provider_id
         if pid is None:
@@ -737,7 +784,42 @@ async def _process_inbound(task_id: str) -> bool:
             continue
         if pid in open_extract:
             continue                         # its extract_quote step will consume it
-        results = await ctx_extract.extract_provider_facts(task_id, pid, ev.text, ev.id)
+        retry_at = ev.payload.get("extract_retry_at")
+        if retry_at and datetime.fromisoformat(retry_at) > now:
+            continue
+        if not budgets.can_start(task_id, [K.EXTRACT_QUOTE])[0]:
+            continue                         # the wave gate asks the budget question
+        try:
+            results = await ctx_extract.extract_provider_facts(task_id, pid, ev.text, ev.id)
+        except Exception as e:  # noqa: BLE001 — LLM/extraction boundary
+            name = repo.get_provider(task_id, pid).name
+            attempts = int(ev.payload.get("extract_attempts", 0)) + 1
+            log.warning("extracting inbound %s failed (%s), attempt %d", ev.id,
+                        type(e).__name__, attempts)
+            telemetry.tick_failed(task_id, e)
+            if attempts < INBOUND_MAX_ATTEMPTS:
+                delay = min(2 ** attempts, 30)
+                repo.update_inbound(ev.id, payload={
+                    "extract_attempts": attempts, "extract_error": type(e).__name__,
+                    "extract_retry_at": _iso(now + timedelta(seconds=delay))})
+                repo.emit(task_id, "error",
+                          f"Couldn't read a new message from {name}; retrying in {delay}s",
+                          {"inbound_id": ev.id, "provider_id": pid, "error": type(e).__name__,
+                           "attempt": attempts, "retry_in_s": delay})
+                continue
+            # A message we can't read may change this provider's terms: no approval for them
+            # stands until the user decides.
+            repo.update_inbound(ev.id, processed=True, payload={
+                "extract_attempts": attempts, "extract_error": type(e).__name__})
+            a = repo.get_latest_approval(task_id)
+            if a is not None and a.status in ("requested", "approved") \
+                    and a.proposal.provider_id == pid:
+                repo.invalidate_approvals(task_id, f"unreadable new message from {name}")
+            questions.ask(task_id, f"Orbit couldn't read a new message from {name} after "
+                                   f"{attempts} attempts, and it may change their terms. "
+                                   "Try again, or stop?",
+                          "step_failed", {"inbound_id": ev.id, "provider_id": pid})
+            return changed
         _emit_ingest(task_id, pid, results)
         no_reply = repo.get_active_fact(task_id, f"{pid}.no_reply")
         if no_reply is not None and no_reply.value:
@@ -759,7 +841,10 @@ def _after_fact_change(task_id: str) -> list[str]:
             repo.invalidate_approvals(task_id, why)
             return [f"approval for {a.proposal.provider_name} no longer valid ({why})"]
         return []
-    if repo.get_task(task_id).status == S.BLOCKED and not _active(repo.list_steps(task_id)):
+    task = repo.get_task(task_id)
+    if task.status == S.BLOCKED and task.reason_code in ("no_eligible_provider", "user_rejected_all"):
+        # A provider's new message may open an option again: withdraw the question and replan.
+        questions.withdraw(task_id, "new information from a provider")
         return ["new information from a provider"]
     return []
 
@@ -777,6 +862,10 @@ async def _run_wave(task_id: str) -> tuple[bool, list[str]]:
     else:
         batch = ready + [s for s in steps if s.state == StepState.RUNNING and s.kind in POLLED_KINDS]
     if not batch:
+        return False, []
+    ok, why = budgets.can_start(task_id, [s.kind for s in batch if s.state == StepState.PENDING])
+    if not ok:
+        _block_for_budget(task_id, why)
         return False, []
 
     task = repo.get_task(task_id)
@@ -816,15 +905,96 @@ async def _run_wave(task_id: str) -> tuple[bool, list[str]]:
     return progressed, reasons
 
 
+def _block_for_budget(task_id: str, why: str) -> None:
+    task = repo.get_task(task_id)
+    if task.status == S.BLOCKED and task.reason_code == "budget_exceeded":
+        return                                  # already asked
+    repo.emit(task_id, "budget.exceeded", why, {"reason": why})
+    questions.ask(task_id, f"Orbit stopped to stay within its limits ({why}). "
+                           "Let it keep working, or stop?", "budget_exceeded")
+
+
+# ---------------------------------------------------------------- reports to the user (G4)
+REPORTABLE = {"approval.requested", "question.asked", "task.completed"}
+
+
+def _report_text(task: Task, ev) -> str:
+    if ev.type == "approval.requested":
+        p = ev.data["proposal"]
+        h8 = ev.data["proposal_hash"][:8]
+        text = (f"Orbit: {p['provider_name']} can come "
+                f"{_local(datetime.fromisoformat(p['slot_start']), task.constraints.timezone)} "
+                f"for {_usd(p['visit_charge_cents'])}. Approve or decline in Orbit.")
+        if get_settings().orbit_text_approvals:
+            text += f" Or reply YES {h8} / NO {h8}."
+        return text
+    if ev.type == "question.asked":
+        return f"Orbit needs you: {ev.data['question']}"
+    return f"Orbit: handled ✓ {ev.data.get('summary', '')}".strip()
+
+
+async def _send_reports(task_id: str) -> None:
+    """Text the user (TaskCreate.user_contact) about approvals, questions and completion.
+    One ToolAction per timeline event: a report is never sent twice and never retried blind."""
+    task = repo.get_task(task_id)
+    if not task.user_contact:
+        return
+    events = [e for e in repo.list_timeline(task_id) if e.type in REPORTABLE]
+    if not events:
+        return
+    m = registry.messaging()
+    to = ProviderSpec(id="user", name="You", handle=task.user_contact,
+                      channel="fixture" if m.is_fixture else "imessage")
+    for ev in events:
+        key = f"{task_id}:report:{ev.id}"
+        if repo.get_action_by_key(key) is not None:
+            continue
+        if not budgets.can_spend_actions(task_id):
+            return
+        text = _report_text(task, ev)
+        action = repo.save_action(ToolAction(
+            id=new_id("act"), task_id=task_id, step_id=f"report:{ev.id}", adapter=m.name,
+            operation="send", idempotency_key=key, request={"event_id": ev.id, "kind": ev.type},
+            status="started", started_at=utcnow()))
+        try:
+            r = await m.send(task_id, to, text, key)
+        except Exception as e:  # noqa: BLE001 — adapter boundary
+            _finish_action(action, "ambiguous", result={"error": type(e).__name__})
+            continue
+        if r.status == "failed":
+            _finish_action(action, "failed", result={"error": r.error, "error_code": r.error_code})
+            repo.emit(task_id, "integration.blocked", f"Couldn't text you: {r.error}",
+                      {"event_id": ev.id, "error": r.error, "error_code": r.error_code,
+                       "adapter": m.name})
+            continue
+        _finish_action(action, "succeeded", result=r.model_dump(mode="json"),
+                       provider_ref=r.provider_ref, evidence_ids=r.evidence_ids)
+        what = {"approval.requested": "approval request", "question.asked": "question",
+                "task.completed": "completion summary"}[ev.type]
+        repo.emit(task_id, "report.sent", f"Texted you the {what}"
+                  + (" (fixture)" if m.is_fixture else ""),
+                  {"event_id": ev.id, "kind": ev.type, "evidence_ids": r.evidence_ids,
+                   "claim_level": "message_delivered" if r.status == "delivered"
+                   else "message_submitted", "is_fixture": m.is_fixture})
+
+
 async def tick(task_id: str) -> None:
+    try:
+        await _tick(task_id)
+    finally:
+        try:
+            await _send_reports(task_id)
+        except Exception:  # noqa: BLE001 — reporting must never break coordination
+            log.exception("sending reports failed for task %s", task_id)
+
+
+async def _tick(task_id: str) -> None:
     task = repo.get_task(task_id)
     if task.status in TERMINAL_STATUSES:
         return
     within, why = budgets.check(task_id)
     if not within:
-        if not (task.status == S.BLOCKED and task.status_reason == why):
-            repo.emit(task_id, "budget.exceeded", why, {"reason": why})
-            _move(task_id, S.BLOCKED, why)
+        _block_for_budget(task_id, why)
         return
     if task.status in (S.DRAFT, S.PLANNING):
         if task.status == S.DRAFT:
@@ -832,16 +1002,19 @@ async def tick(task_id: str) -> None:
         planner.build_initial_plan(task_id)
         repo.set_status(task_id, S.RUNNING)
 
-    reasons: list[str] = []
     if await _process_inbound(task_id):
-        reasons += _after_fact_change(task_id)
-    for _ in range(MAX_WAVES):
+        reasons = _after_fact_change(task_id)
         if reasons:
             planner.replan(task_id, "; ".join(dict.fromkeys(reasons)))
-            reasons = []
-        if repo.get_task(task_id).status in TERMINAL_STATUSES:
+    for _ in range(MAX_WAVES):
+        if repo.get_task(task_id).status in TERMINAL_STATUSES or _paused(task_id):
             return
         progressed, reasons = await _run_wave(task_id)
+        if reasons:
+            # Replan before deriving status: between a skipped step and its replacement chain
+            # the graph briefly has nothing runnable, which must not read as "stuck".
+            planner.replan(task_id, "; ".join(dict.fromkeys(reasons)))
+            progressed = True
         _derive_status(task_id)
-        if not progressed and not reasons:
+        if not progressed:
             break

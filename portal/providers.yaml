@@ -11,6 +11,9 @@ providers:
       - id: dishwasher_repair
         label: Dishwasher repair visit
         visit_charge_cents: 12000
+      - id: washer_repair
+        label: Washing machine diagnostic visit (includes travel)
+        visit_charge_cents: 11000
     fees:
       - name: Trip charge
         cents: 7000
@@ -27,10 +30,32 @@ providers:
       - id: dishwasher_repair
         label: Diagnostic visit (includes travel)
         visit_charge_cents: 14500
+      - id: washer_repair
+        label: Washer diagnostic visit (includes travel)
+        visit_charge_cents: 13500
     fees: []
     cancellation_terms: Cancel free more than 12 hours ahead, $25 inside 12 hours.
     notes:
       - Parts and labor quoted after diagnosis
     daily_slots:
       - ["14:30", "15:30"]
+      - ["16:00", "17:00"]
+
+  # Sandbox-only third provider (not in the canonical two-provider story).
+  provider_c:
+    name: Coastal Appliance Pros
+    tagline: Same-week appliance diagnostics up and down the coast.
+    accent: "#3d7a4a"
+    services:
+      - id: dishwasher_repair
+        label: Dishwasher diagnostic visit (includes travel)
+        visit_charge_cents: 16000
+      - id: washer_repair
+        label: Washing machine diagnostic visit (includes travel)
+        visit_charge_cents: 12500
+    fees: []
+    cancellation_terms: Free cancellation with 48 hours notice.
+    notes: []
+    daily_slots:
+      - ["14:00", "15:00"]
       - ["16:00", "17:00"]

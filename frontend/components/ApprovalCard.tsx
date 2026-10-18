@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Check, LockKeyhole, X } from "lucide-react";
+import { CalendarClock, Check, LockKeyhole, Octagon, X } from "lucide-react";
 import { api, StaleProposalError } from "@/lib/api";
 import { localRange, money, safeWording } from "@/lib/format";
 import type { Approval, Verdict } from "@/lib/types";
@@ -22,14 +22,18 @@ export function ApprovalCard({
   const p = approval.proposal,
     invalid = approval.status === "invalidated",
     pending = approval.status === "requested";
-  async function decide(decision: "approved" | "rejected") {
+  async function decide(
+    decision: "approved" | "rejected",
+    scope: "provider" | "proposal" = "provider",
+  ) {
     setPosting(true);
     setError("");
     try {
       await api.approve(approval.task_id, {
         proposal_hash: approval.proposal_hash,
         decision,
-        approver: "demo_user",
+        approver: "demo_user", // ignored by the backend: the signed-in user decides
+        ...(decision === "rejected" ? { scope } : {}),
       });
       await onRefresh();
     } catch (e) {
@@ -51,9 +55,22 @@ export function ApprovalCard({
       setPosting(false);
     }
   }
+  async function stop() {
+    setPosting(true);
+    setError("");
+    try {
+      await api.cancel(approval.task_id);
+      await onRefresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to stop the task");
+    } finally {
+      setPosting(false);
+    }
+  }
+  const declined = approval.status === "rejected";
   return (
     <section
-      className={`card approval-card ${invalid ? "invalid" : ""}`}
+      className={`card approval-card ${invalid ? "invalid" : ""} ${declined ? "declined" : ""}`}
       aria-label={`${p.provider_name} approval`}
     >
       <div className="section-title">
@@ -64,11 +81,13 @@ export function ApprovalCard({
               ? "Previous approval withdrawn"
               : pending
                 ? "A decision for you"
-                : "Your decision"}
+                : declined
+                  ? "You declined this"
+                  : "Your decision"}
           </h2>
         </div>
         <span className={`badge ${pending ? "amber" : ""}`}>
-          {approval.status}
+          {declined ? "declined" : approval.status}
         </span>
       </div>
       {invalid && (
@@ -133,11 +152,31 @@ export function ApprovalCard({
           <button
             className="button reject-btn"
             disabled={posting || disabled}
-            onClick={() => void decide("rejected")}
+            onClick={() => void decide("rejected", "provider")}
+            title="Decline this provider; Orbit looks for the next option and asks you again"
           >
             <X size={16} />
-            Reject
+            Not this one — find another
           </button>
+          <div className="approval-secondary row">
+            <button
+              className="text-button"
+              disabled={posting || disabled}
+              onClick={() => void decide("rejected", "proposal")}
+              title="Keep this provider but decline this time; Orbit offers their next time if they have one"
+            >
+              <CalendarClock size={14} />A different time
+            </button>
+            <button
+              className="text-button danger"
+              disabled={posting || disabled}
+              onClick={() => void stop()}
+              title="Cancel this task; nothing is booked"
+            >
+              <Octagon size={14} />
+              Stop here
+            </button>
+          </div>
         </div>
       )}
     </section>
