@@ -25,10 +25,10 @@ class Settings(BaseSettings):
     artifact_dir: str = "./artifacts"
 
     llm_mode: Literal["fixture", "live"] = "fixture"
-    llm_provider: str = "anthropic"
+    llm_provider: str = "gemini"
     llm_model: str = ""
     anthropic_api_key: str = ""
-    openai_api_key: str = ""
+    gemini_api_key: str = ""
 
     messaging_mode: Literal["fixture", "photon"] = "fixture"
     photon_api_key: str = ""

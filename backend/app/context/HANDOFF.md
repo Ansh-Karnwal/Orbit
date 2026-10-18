@@ -82,7 +82,7 @@ Environment
 ===========
 
 Offline: `LLM_MODE=fixture` (default). No API key or SDK import is required for the fixture path.
-Live: `LLM_MODE=live`, `LLM_PROVIDER=anthropic`, `LLM_MODEL=<your supported model id>`, `ANTHROPIC_API_KEY=<secret>`.
+Live: `LLM_MODE=live`, `LLM_PROVIDER=gemini`, `LLM_MODEL=gemini-3.8-flash`, `GEMINI_API_KEY=<secret>`.
 `app.llm.client.status()` supplies fixture/live/blocked status for the adapter registry.
 Install `backend/requirements/context.txt` alongside Victor's core requirements.
 The client reads Victor's shared `.env` settings, with process environment variables taking precedence.
