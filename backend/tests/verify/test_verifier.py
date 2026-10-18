@@ -121,3 +121,11 @@ def test_malformed_nested_confirmation_is_insufficient_and_does_not_crash(memory
     original = memory_repo.evidence[-1]
     memory_repo.evidence[-1] = original.model_copy(update={"extracted": {"confirmation": None}})
     assert asyncio.run(verify("tsk_test")).verdict == Verdict.INSUFFICIENT_EVIDENCE
+
+
+def test_cancellation_terms_ignore_case_spacing_and_final_period():
+    from app.verify.predicates import same_terms
+    assert same_terms("Free cancellation with 24 hours notice", "Free cancellation with 24 hours notice.")
+    assert same_terms("free cancellation  with 24 hours notice.", "Free cancellation with 24 hours notice.")
+    assert not same_terms("Free cancellation with 12 hours notice.", "Free cancellation with 24 hours notice.")
+    assert not same_terms("", "Free cancellation with 24 hours notice.")

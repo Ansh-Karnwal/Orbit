@@ -5,6 +5,13 @@ from app.context.decisions import approval_validity
 from app.context.values import cents, instant, money
 
 
+def same_terms(a: str, b: str) -> bool:
+    """Wording comparison for cancellation terms: case, spacing and trailing punctuation don't count
+    (a texted policy often loses its final period), but any change of words does."""
+    norm = lambda t: " ".join((t or "").split()).rstrip(" .!;,").casefold()  # noqa: E731
+    return norm(a) == norm(b)
+
+
 def verdict_for(predicates: list[PredicateResult]) -> Verdict:
     if any(p.passed is False for p in predicates):
         return Verdict.FAIL
@@ -84,8 +91,10 @@ def evaluate(task, providers, facts, approval, confirmation=None, evidence=None,
     if confirmation is None or proposal is None or expected_orbit_ref is None:
         add("confirmation_consistent", None, "Exact confirmation comparison needs approval, confirmation and the bound booking reference")
     else:
-        differences = [name for name in ("provider_id", "service", "slot_start", "slot_end", "visit_charge_cents", "cancellation_terms")
+        differences = [name for name in ("provider_id", "service", "slot_start", "slot_end", "visit_charge_cents")
                        if getattr(confirmation, name) != getattr(proposal, name)]
+        if not same_terms(confirmation.cancellation_terms, proposal.cancellation_terms):
+            differences.append("cancellation_terms")
         if confirmation.orbit_ref != expected_orbit_ref:
             differences.append("orbit_ref")
         add("confirmation_consistent", not differences, "Confirmation exactly matches approved terms" if not differences else "Confirmation differs in: " + ", ".join(differences))
