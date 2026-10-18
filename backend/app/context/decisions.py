@@ -37,7 +37,8 @@ def eligibility_for(task, providers, facts) -> dict[str, list[str]]:
             if conflict.kind == "budget_violation":
                 reasons.append(f"Over budget: {money(pf['visit_charge_cents'].value)} > {money(task.constraints.max_visit_charge_cents)}")
             elif conflict.kind == "window_violation":
-                reasons.append(f"No slot inside {local_window(task.constraints)}")
+                location = "portal appointment" if conflict.key.endswith(".portal_slots") else "provider-offered appointment"
+                reasons.append(f"No {location} inside {local_window(task.constraints)}")
             elif conflict.kind == "missing_required":
                 reasons.append(labels.get(conflict.key.split(".", 1)[1], conflict.detail))
             elif conflict.kind == "contradiction":

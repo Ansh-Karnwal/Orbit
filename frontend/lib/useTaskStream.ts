@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, USE_MOCKS } from "./api";
+import { api, ApiError, USE_MOCKS } from "./api";
 import type { TaskView, TimelineEvent } from "./types";
 export function mergeTimeline(
   a: TimelineEvent[],
@@ -13,6 +13,7 @@ export function mergeTimeline(
 export function useTaskStream(id: string) {
   const [view, setView] = useState<TaskView | null>(null),
     [error, setError] = useState<string | null>(null),
+    [errorStatus, setErrorStatus] = useState<number | null>(null),
     [connection, setConnection] = useState<
       "connecting" | "connected" | "reconnecting"
     >("connecting");
@@ -42,9 +43,11 @@ export function useTaskStream(id: string) {
           ),
         }));
         setError(null);
+        setErrorStatus(null);
       } catch (e) {
         if (!disposed) {
           setError(e instanceof Error ? e.message : "Unable to load task");
+          setErrorStatus(e instanceof ApiError ? e.status : null);
           throw e;
         }
       }
@@ -107,7 +110,8 @@ export function useTaskStream(id: string) {
           });
           setConnection("connected");
         } else connect();
-      } catch {
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) return;
         if (!disposed) {
           setConnection("reconnecting");
           reconnectTimer = setTimeout(
@@ -130,6 +134,7 @@ export function useTaskStream(id: string) {
   return {
     view: view?.task.id === id ? view : null,
     error,
+    errorStatus,
     connection,
     refresh,
   };

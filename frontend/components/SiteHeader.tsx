@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowUpRight, LayoutGrid, Plus, ShieldCheck, UserRound } from "lucide-react";
+import { ArrowUpRight, Plus, UserRound } from "lucide-react";
 import { api } from "@/lib/api";
 import type { UserInfo } from "@/lib/types";
 import { OrbitMark } from "./OrbitMark";
@@ -25,54 +25,58 @@ function UserChip() {
 }
 
 export function SiteHeader() {
-  const path = usePathname();
-  const workspace = path.startsWith("/tasks/");
+  const pathname = usePathname();
+  const workspace = pathname.startsWith("/tasks");
   return (
-    <header className={`site-header ${workspace ? "workspace-header" : ""}`}>
-      <div className="header-inner">
-        <Link href="/" className="brand" aria-label="Orbit home">
-          <OrbitMark />
-          orbit<span className="brand-period">.</span>
-        </Link>
-        {workspace ? (
-          <>
-            <span className="workspace-header-label">
-              Your coordination workspace
-            </span>
-            <div className="row header-actions">
-              <Link className="text-link" href="/services">
-                <LayoutGrid size={14} />
-                Services
-              </Link>
-              <UserChip />
-              <Link className="button small" href="/#intake">
+    <>
+      {pathname === "/" && (
+        <div className="brand-note">
+          Your plans. Your boundaries. Your final say.
+        </div>
+      )}
+      <header className="site-header">
+        <div className="header-inner">
+          <Link href="/" className="brand" aria-label="Orbit home">
+            <OrbitMark />
+            orbit<span className="brand-period">.</span>
+          </Link>
+          <nav aria-label="Main navigation" className="header-links">
+            {pathname === "/" && (
+              <a className="how-link" href="#how">
+                How it works
+              </a>
+            )}
+            <Link
+              href="/tasks"
+              aria-label="Your outcomes"
+              aria-current={pathname === "/tasks" ? "page" : undefined}
+            >
+              Outcomes
+            </Link>
+            <Link
+              href="/services"
+              aria-current={pathname === "/services" ? "page" : undefined}
+            >
+              Services
+            </Link>
+            <UserChip />
+            {workspace ? (
+              <Link className="button primary small" href="/#intake">
                 <Plus size={15} />
                 New outcome
               </Link>
-            </div>
-          </>
-        ) : (
-          <>
-            <nav aria-label="Main navigation" className="landing-nav">
-              <Link href="/#intake">The demo</Link>
-              <Link href="/services">Services</Link>
-            </nav>
-            <div className="row header-actions">
-              <UserChip />
+            ) : pathname === "/" ? (
+              <a href="#intake" className="button primary small">
+                Try Orbit <ArrowUpRight size={15} />
+              </a>
+            ) : (
               <Link href="/#intake" className="button primary small">
-                Try Orbit
-                <ArrowUpRight size={15} />
+                Try Orbit <ArrowUpRight size={15} />
               </Link>
-            </div>
-          </>
-        )}
-      </div>
-      {workspace && (
-        <span className="header-trust">
-          <ShieldCheck size={13} />
-          You stay in control
-        </span>
-      )}
-    </header>
+            )}
+          </nav>
+        </div>
+      </header>
+    </>
   );
 }

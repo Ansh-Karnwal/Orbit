@@ -1,0 +1,1 @@
+Fonts are self-hosted from Google Fonts: Figtree (400–700), EB Garamond (regular and italic). Both use the SIL Open Font License; their licenses are included here. Latin subsets keep the page independent of a third-party font service at runtime.

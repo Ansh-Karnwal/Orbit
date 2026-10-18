@@ -12,6 +12,13 @@ export default defineConfig({
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     {
+      name: "tablet",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1024, height: 768 },
+      },
+    },
+    {
       name: "phone",
       use: { ...devices["iPhone 13"], defaultBrowserType: "chromium" },
     },
@@ -19,7 +26,7 @@ export default defineConfig({
   webServer: {
     command: "NEXT_PUBLIC_USE_MOCKS=1 npm run dev",
     url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120000,
   },
 });

@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { SiteHeader } from "@/components/SiteHeader";
 import "./globals.css";
-import "./polish.css";
-import "./workspace.css";
 export const metadata: Metadata = {
   title: "Orbit · Outcome coordination",
   description: "Coordinated with context. Completed with evidence.",

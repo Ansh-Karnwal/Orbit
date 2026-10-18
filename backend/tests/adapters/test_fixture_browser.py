@@ -62,6 +62,31 @@ async def test_taken_slot_is_failed(ev, portal_client):
     assert res.status == "failed" and "slot_unavailable" in res.error
 
 
+async def test_repeated_demo_runs_start_with_fresh_slots(ev, portal_client):
+    adapter = FixtureBrowserAdapter(client=portal_client)
+    confirmations = []
+    for task_id in ["tsk_first_demo", "tsk_second_demo", "tsk_third_demo"]:
+        available = await adapter.read_availability(task_id, provider(), date(2026, 10, 20),
+                                                     "America/Los_Angeles")
+        assert len(available.slots) == 2
+        request = booking_request("ORB-repeat", task_id=task_id)
+        booked = await adapter.submit_booking(request)
+        assert booked.status == "confirmed"
+        confirmations.append(booked.confirmation.confirmation_id)
+        remaining = await adapter.read_availability(task_id, provider(), date(2026, 10, 20),
+                                                     "America/Los_Angeles")
+        assert len(remaining.slots) == 1
+        duplicate = await adapter.submit_booking(request)
+        assert duplicate.status == "failed" and "slot_unavailable" in duplicate.error
+
+    for task_id, confirmation_id in zip(
+            ["tsk_first_demo", "tsk_second_demo", "tsk_third_demo"], confirmations):
+        found = await adapter.find_booking(task_id, provider(), "ORB-repeat")
+        assert found.confirmation.confirmation_id == confirmation_id
+    assert await adapter.find_booking("tsk_new_demo", provider(), "ORB-repeat") is None
+    assert len((await portal_client.get("/admin/state")).json()["bookings"]) == 3
+
+
 async def test_unreachable_portal_is_failed_not_ambiguous(ev):
     def refuse(request):
         raise httpx.ConnectError("connection refused", request=request)

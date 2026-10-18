@@ -1,112 +1,163 @@
 "use client";
-/* eslint-disable @next/next/no-img-element -- Artifact URLs require a native, unoptimized evidence preview. */
-import { useEffect, useRef } from "react";
+/* eslint-disable @next/next/no-img-element -- Evidence previews use the artifact endpoint directly. */
+import { useEffect, useRef, useState } from "react";
 import { ExternalLink, FileText, X } from "lucide-react";
 import { api } from "@/lib/api";
+import { claimLabel, localTimestamp, money, safeWording } from "@/lib/format";
 import {
-  claimLabel,
-  localTimestamp,
-  localTime,
-  money,
-  safeWording,
-} from "@/lib/format";
-import type { EvidenceArtifact, EvidenceKind, Verdict } from "@/lib/types";
-// Typed by EvidenceKind so a new kind can't silently render without a title.
-const labels: Record<EvidenceKind, string> = {
-  message_in: "Provider message",
-  message_out: "Outgoing message",
-  portal_confirmation: "Portal record",
-  browser_trace: "Browser trace",
-  screenshot: "Screenshot",
-  availability: "Availability",
-  delivery_receipt: "Delivery receipt",
-  creao_output: "CREAO output",
-  user_decision: "Your decision",
-};
+  evidenceLabels,
+  evidenceProvider,
+  serviceName,
+} from "@/lib/presentation";
+import type { EvidenceArtifact, TaskView } from "@/lib/types";
+
 export function EvidenceList({
-  evidence,
-  timezone,
-  verdict,
+  view,
   onEvidence,
 }: {
-  evidence: EvidenceArtifact[];
-  timezone: string;
-  verdict?: Verdict;
+  view: TaskView;
   onEvidence: (id: string) => void;
 }) {
   return (
     <section className="card">
       <div className="section-title">
-        <h2>Evidence library</h2>
-        <span className="badge">{evidence.length} artifacts</span>
+        <div>
+          <h2>Evidence library</h2>
+          <p className="field-note">
+            Messages and records behind your outcome.
+          </p>
+        </div>
+        <span className="badge">{view.evidence.length} sources</span>
       </div>
-      {!evidence.length && (
+      {!view.evidence.length && (
         <p className="empty">
-          Sources will appear here as the task progresses.
+          Messages and availability records will appear here as providers
+          respond.
         </p>
       )}
       <div className="evidence-list">
-        {evidence.map((e) => (
+        {view.evidence.toReversed().map((e) => (
           <button key={e.id} onClick={() => onEvidence(e.id)}>
-            <FileText size={18} />
+            <FileText size={19} />
             <div>
-              <strong>{labels[e.kind]}</strong>
+              <strong>
+                {evidenceProvider(view, e.id)} · {evidenceLabels[e.kind]}
+              </strong>
+              {typeof e.extracted.text === "string" && (
+                <p className="evidence-excerpt">
+                  {safeWording(
+                    e.extracted.text.slice(0, 160),
+                    view.verification?.verdict,
+                  )}
+                  {e.extracted.text.length > 160 ? "…" : ""}
+                </p>
+              )}
               <p>
-                {claimLabel(e.claim_level, verdict)} ·{" "}
-                {e.source.replaceAll("_", " ")}
+                {claimLabel(e.claim_level, view.verification?.verdict)} ·{" "}
+                {localTimestamp(e.captured_at, view.task.constraints.timezone)}
+                {e.is_fixture ? " · Simulated" : ""}
               </p>
-              <p>{localTime(e.captured_at, timezone)}</p>
             </div>
-            {e.is_fixture && <span className="badge amber">Fixture</span>}
-            <ExternalLink size={13} />
+            <ExternalLink size={15} />
           </button>
         ))}
       </div>
     </section>
   );
 }
+
 export function EvidenceDrawer({
   id,
-  evidence,
-  timezone,
-  verdict,
+  view,
   onClose,
 }: {
   id: string | null;
-  evidence: EvidenceArtifact[];
-  timezone: string;
-  verdict?: Verdict;
+  view: TaskView;
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const e = evidence.find((e) => e.id === id);
+  const [resolved, setResolved] = useState<{
+    id: string;
+    evidence?: EvidenceArtifact;
+    error?: string;
+  } | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const direct = view.evidence.find((e) => e.id === id);
+  const e = direct ?? (resolved?.id === id ? resolved.evidence : undefined);
+  const error = resolved?.id === id ? resolved.error : undefined;
+  const tz = view.task.constraints.timezone,
+    verdict = view.verification?.verdict;
   useEffect(() => {
     if (id && !dialog.current?.open) dialog.current?.showModal();
     if (!id && dialog.current?.open) dialog.current.close();
   }, [id]);
+  useEffect(() => {
+    if (!id || direct) return;
+    const abort = new AbortController();
+    void api
+      .source(view.task.id, id, abort.signal)
+      .then((evidence) => {
+        if (!abort.signal.aborted) setResolved({ id, evidence });
+      })
+      .catch(() => {
+        if (!abort.signal.aborted)
+          setResolved({
+            id,
+            error:
+              "We couldn’t retrieve this source. Try again to load the original record.",
+          });
+      });
+    return () => abort.abort();
+  }, [id, direct, view.task.id, attempt]);
   function display(key: string, value: unknown): string {
     if (key.endsWith("_cents") && typeof value === "number")
       return money(value);
+    if (key === "provider_id")
+      return view.providers.find((p) => p.id === value)?.name ?? String(value);
+    if (key === "service" && typeof value === "string")
+      return serviceName(value);
     if (
       typeof value === "string" &&
       /^\d{4}-\d\d-\d\dT/.test(value) &&
       Number.isFinite(Date.parse(value))
     )
-      return localTimestamp(value, timezone);
+      return localTimestamp(value, tz);
     if (Array.isArray(value))
       return value.map((item) => display(key, item)).join("\n\n");
     if (value && typeof value === "object")
       return Object.entries(value)
-        .map(
-          ([field, item]) =>
-            `${field.replaceAll("_", " ")}: ${display(field, item)}`,
-        )
+        .map(([k, v]) => `${k.replaceAll("_", " ")}: ${display(k, v)}`)
         .join("\n");
     return safeWording(
       typeof value === "string" ? value : JSON.stringify(value),
       verdict,
     );
   }
+  const labels: Record<string, string> = {
+    provider_id: "Provider",
+    service: "Service",
+    slot_start: "Starts",
+    slot_end: "Ends",
+    visit_charge_cents: "Visit charge",
+    confirmation_id: "Confirmation",
+    cancellation_terms: "Cancellation",
+    orbit_ref: "Booking reference",
+    slots: "Available appointments",
+    to: "Sent to",
+  };
+  const technical = new Set([
+    "external_id",
+    "idempotency_key",
+    "channel",
+    "screenshots",
+    "source_id",
+    "inbound_id",
+  ]);
+  const fields = e
+    ? Object.entries(e.extracted).filter(
+        ([key]) => key !== "text" && !technical.has(key),
+      )
+    : [];
   return (
     <dialog
       ref={dialog}
@@ -116,7 +167,9 @@ export function EvidenceDrawer({
       aria-labelledby="evidence-title"
     >
       <div className="row between">
-        <h2 id="evidence-title">{e ? labels[e.kind] : "Source reference"}</h2>
+        <h2 id="evidence-title">
+          {e ? evidenceLabels[e.kind] : "Source message"}
+        </h2>
         <button
           className="button small"
           onClick={onClose}
@@ -125,45 +178,47 @@ export function EvidenceDrawer({
           <X size={18} />
         </button>
       </div>
-      <p className="mono tiny muted break">{id}</p>
       {!e ? (
-        <p className="empty">
-          This source is an inbound event or an artifact not included in this
-          task view. Its reference is preserved above.
-        </p>
+        error ? (
+          <div className="stack">
+            <p className="error" role="alert">
+              {error}
+            </p>
+            <button className="button" onClick={() => setAttempt((v) => v + 1)}>
+              Try loading source again
+            </button>
+          </div>
+        ) : (
+          <p role="status">Loading the original source…</p>
+        )
       ) : (
         <div className="stack">
-          <div className="row wrap">
-            <span className="badge">{e.source}</span>
-            {e.is_fixture && (
-              <span className="badge amber">Fixture evidence · simulated</span>
-            )}
-            <span className="badge">{claimLabel(e.claim_level, verdict)}</span>
-          </div>
-          <p className="tiny muted">
-            Captured {localTimestamp(e.captured_at, timezone)}
+          <p className="field-note">
+            {view.providers.find((p) => p.id === e.extracted.provider_id)
+              ?.name ?? evidenceProvider(view, e.id)}{" "}
+            · {localTimestamp(e.captured_at, tz)}
+            {e.is_fixture ? " · Simulated evidence" : ""}
           </p>
-          {e.kind === "screenshot" && e.uri && (
-            <div className="screenshot-preview">
-              <img
-                src={api.artifactUrl(e.id)}
-                alt={`Evidence screenshot from ${e.source}`}
-              />
+          <span className="badge">{claimLabel(e.claim_level, verdict)}</span>
+          {typeof e.extracted.text === "string" && (
+            <div className="source-text">
+              {safeWording(e.extracted.text, verdict)}
             </div>
           )}
-          <dl className="extracted">
-            {Object.entries(e.extracted).map(([key, value]) => (
-              <div key={key}>
-                <dt>{key.replaceAll("_", " ")}</dt>
-                <dd className="break">{display(key, value)}</dd>
-              </div>
-            ))}
-          </dl>
-          {e.provider_ref && (
-            <p className="tiny break">
-              Session / provider reference:{" "}
-              <span className="mono">{e.provider_ref}</span>
-            </p>
+          {e.kind === "screenshot" && e.uri && (
+            <div className="screenshot-preview">
+              <img src={api.artifactUrl(e.id)} alt="Source screenshot" />
+            </div>
+          )}
+          {fields.length > 0 && (
+            <dl className="extracted">
+              {fields.map(([key, value]) => (
+                <div key={key}>
+                  <dt>{labels[key] ?? serviceName(key)}</dt>
+                  <dd>{display(key, value)}</dd>
+                </div>
+              ))}
+            </dl>
           )}
           {e.uri && (
             <a
@@ -172,13 +227,26 @@ export function EvidenceDrawer({
               target="_blank"
               rel="noreferrer"
             >
-              Open source artifact
-              <ExternalLink size={15} />
+              Open source artifact <ExternalLink size={15} />
             </a>
           )}
-          {e.sha256 && (
-            <p className="tiny mono muted break">SHA-256 {e.sha256}</p>
-          )}
+          <details className="disclosure">
+            <summary>Technical reference</summary>
+            <div className="stack tiny mono break">
+              <p>Source: {id}</p>
+              <p>Artifact: {e.id}</p>
+              <p>Adapter: {e.source}</p>
+              {e.provider_ref && <p>Provider reference: {e.provider_ref}</p>}
+              {e.sha256 && <p>SHA-256: {e.sha256}</p>}
+              {Object.entries(e.extracted)
+                .filter(([key]) => technical.has(key))
+                .map(([key, value]) => (
+                  <p key={key}>
+                    {key}: {display(key, value)}
+                  </p>
+                ))}
+            </div>
+          </details>
         </div>
       )}
     </dialog>

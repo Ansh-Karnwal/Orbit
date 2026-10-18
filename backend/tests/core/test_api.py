@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from app.core import repo
 from app.core.api.demo import resolve_seed
 from app.core.evidence import save_evidence
-from app.core.schemas import EvidenceArtifact, TaskView, new_id, utcnow
+from app.core.schemas import EvidenceArtifact, InboundEvent, TaskView, new_id, utcnow
 from app.main import app
 from tests.core.fakes import A1, A2, B1, reply, ticks
 
@@ -117,6 +117,29 @@ def test_list_newest_first_and_404s():
     assert client.post("/tasks/tsk_nope/cancel").status_code == 404
     r = client.post("/tasks/tsk_nope/approvals", json={"proposal_hash": "x", "decision": "approved"})
     assert r.status_code == 404
+
+
+def test_fact_sources_resolve_original_messages_and_stay_within_the_task():
+    tid, other = _create(), _create()
+    inbound = InboundEvent(id=new_id("inb"), source="fixture", external_id="source-test",
+                           task_id=tid, provider_id="provider_a", text="The visit is $120.",
+                           received_at=utcnow())
+    repo.record_inbound(inbound)
+    save_evidence(tid, "message_in", "demo", is_fixture=True,
+                  extracted={"provider_id": "provider_a", "external_id": "source-test",
+                             "text": "A different adapter's message with the same external ID."})
+    artifact = save_evidence(tid, "message_in", "fixture_messaging", is_fixture=True,
+                             extracted={"provider_id": "provider_a", "external_id": "source-test",
+                                        "text": inbound.text})
+    # No timeline lookup: references must survive the snapshot's 200-event limit.
+    response = client.get(f"/tasks/{tid}/sources/{inbound.id}")
+    assert response.status_code == 200
+    assert response.json()["id"] == artifact.id
+    assert response.json()["extracted"]["text"] == inbound.text
+    assert client.get(f"/tasks/{tid}/sources/{artifact.id}").status_code == 200
+    assert client.get(f"/tasks/{other}/sources/{inbound.id}").status_code == 404
+    assert client.get(f"/tasks/{other}/sources/{artifact.id}").status_code == 404
+    assert client.get(f"/tasks/{tid}/sources/inb_missing").status_code == 404
     assert client.get("/artifacts/evd_nope").status_code == 404
 
 

@@ -10,12 +10,14 @@ export function ApprovalCard({
   verdict,
   onRefresh,
   disabled = false,
+  budget,
 }: {
   approval: Approval;
   timezone: string;
   verdict?: Verdict;
   onRefresh: () => Promise<void>;
   disabled?: boolean;
+  budget?: number;
 }) {
   const [posting, setPosting] = useState(false),
     [error, setError] = useState("");
@@ -87,7 +89,15 @@ export function ApprovalCard({
           </h2>
         </div>
         <span className={`badge ${pending ? "amber" : ""}`}>
-          {declined ? "declined" : approval.status}
+          {
+            {
+              requested: "Awaiting you",
+              approved: "Approved",
+              rejected: "Declined",
+              invalidated: "Withdrawn",
+              expired: "Expired",
+            }[approval.status]
+          }
         </span>
       </div>
       {invalid && (
@@ -98,10 +108,20 @@ export function ApprovalCard({
           )}
         </p>
       )}
+      {pending && budget !== undefined && (
+        <p className="recommendation">
+          <strong>Recommended.</strong>{" "}
+          {budget >= p.visit_charge_cents
+            ? `${money(budget - p.visit_charge_cents)} below your visit budget.`
+            : `${money(p.visit_charge_cents - budget)} above your visit budget.`}{" "}
+        </p>
+      )}
       <div className="row between approval-provider">
         <div>
           <h3>{p.provider_name}</h3>
-          <p className="approval-service-tag">{p.service.replaceAll("_", " ")}</p>
+          <p className="approval-service-tag">
+            {p.service.replaceAll("_", " ")}
+          </p>
         </div>
         <div className="approval-price-box">
           <span className="approval-price-label">Visit Charge</span>
@@ -127,13 +147,15 @@ export function ApprovalCard({
           <dt>Cancellation</dt>
           <dd>{safeWording(p.cancellation_terms, verdict)}</dd>
         </div>
+        <div>
+          <dt>Repair costs</dt>
+          <dd>
+            {p.repair_cost_known
+              ? "Review the provider’s repair quote separately."
+              : "Parts and labor quoted after diagnosis; this charge covers the visit only."}
+          </dd>
+        </div>
       </dl>
-      <div className="row between wrap approval-footer">
-        <span className="approval-security-note">Binding agreement hash</span>
-        <abbr className="mono tiny hash" title={approval.proposal_hash}>
-          #{approval.proposal_hash.slice(0, 8)}
-        </abbr>
-      </div>
       {error && (
         <p role="alert" className="error">
           {error}
@@ -179,6 +201,17 @@ export function ApprovalCard({
           </div>
         </div>
       )}
+      {pending && (
+        <p className="decision-note">
+          After approval, Orbit submits the request and checks the confirmation
+          against these exact terms.
+        </p>
+      )}
+      <details className="approval-footer">
+        <summary>Approval reference</summary>
+        <p>This reference binds your decision to the terms shown above.</p>
+        <span className="mono hash">{approval.proposal_hash}</span>
+      </details>
     </section>
   );
 }

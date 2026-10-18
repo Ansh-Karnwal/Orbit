@@ -4,7 +4,7 @@ import {
   ExternalLink,
   Star,
   TriangleAlert,
-  UserX,
+  X,
 } from "lucide-react";
 import { localRange, money, safeWording } from "@/lib/format";
 import { providerAccent } from "@/lib/labels";
@@ -14,20 +14,22 @@ function factValue(fact: ContextFact, tz: string): string {
     return money(fact.value);
   if (fact.key.endsWith("slots_offered") || fact.key.endsWith("portal_slots")) {
     if (Array.isArray(fact.value))
-      return fact.value
-        .map((s: unknown) => {
-          if (
-            s &&
-            typeof s === "object" &&
-            "start" in s &&
-            "end" in s &&
-            typeof s.start === "string" &&
-            typeof s.end === "string"
-          )
-            return localRange(s.start, s.end, tz);
-          return "Slot data unavailable";
-        })
-        .join(" / ");
+      return fact.value.length
+        ? fact.value
+            .map((s: unknown) => {
+              if (
+                s &&
+                typeof s === "object" &&
+                "start" in s &&
+                "end" in s &&
+                typeof s.start === "string" &&
+                typeof s.end === "string"
+              )
+                return localRange(s.start, s.end, tz);
+              return "Slot data unavailable";
+            })
+            .join("\n")
+        : "No open appointments";
   }
   if (fact.key.endsWith("repair_cost_known"))
     return fact.value === true
@@ -107,11 +109,14 @@ export function ProviderCard({
   const facts = view.facts.filter((f) => f.key.startsWith(`${provider.id}.`)),
     reasons = view.eligibility[provider.id],
     replied = facts.some(
-      (f) => !f.key.endsWith(".declined_by_user") && !f.key.endsWith(".declined_slots"),
+      (f) =>
+        !f.key.endsWith(".declined_by_user") &&
+        !f.key.endsWith(".declined_slots"),
     ),
-    known = !!reasons && replied,
+    known =
+      !!reasons &&
+      facts.some((f) => f.key === `${provider.id}.visit_charge_cents`),
     eligible = known && reasons.length === 0,
-    declined = !!reasons?.some((r) => /declined by you/i.test(r)),
     summary = view.provider_summaries?.[provider.id],
     chosen =
       proposed &&
@@ -119,10 +124,24 @@ export function ProviderCard({
         (a) => a.status === "approved" && a.proposal.provider_id === provider.id,
       ),
     index = accent ?? view.providers.findIndex((p) => p.id === provider.id);
-  const visitChargeFacts = facts.filter((f) => f.key === `${provider.id}.visit_charge_cents`);
+  // Declined if the user rejected their proposal — unless the user has since reconsidered
+  // (eligibility then no longer says "declined by you").
+  const declinedReason = !!reasons?.some((r) => /declined by you/i.test(r));
+  const declined =
+    declinedReason ||
+    (!proposed &&
+      reasons !== undefined &&
+      reasons.length > 0 &&
+      view.approvals.some(
+        (a) => a.proposal.provider_id === provider.id && a.status === "rejected",
+      ));
+  const visitChargeFacts = facts.filter(
+    (f) => f.key === `${provider.id}.visit_charge_cents`,
+  );
   const fields = [
     ["fee_scope", "Includes"],
-    ["slots_offered", "Offered window"],
+    ["slots_offered", "Provider offered"],
+    ["portal_slots", "Portal availability"],
     ["cancellation_terms", "Cancellation"],
   ];
   return (
@@ -144,7 +163,7 @@ export function ProviderCard({
           {proposed ? (
             <Star size={13} />
           ) : declined ? (
-            <UserX size={13} />
+            <X size={13} />
           ) : eligible ? (
             <Check size={13} />
           ) : known ? (
@@ -159,10 +178,10 @@ export function ProviderCard({
             : declined
               ? "Declined"
               : eligible
-                ? "Eligible"
+                ? "Fits your request"
                 : known
-                  ? "Review"
-                  : "Inquiring"}
+                  ? "Unavailable"
+                  : "Checking"}
         </span>
       </div>
       {summary && (
@@ -173,7 +192,7 @@ export function ProviderCard({
 
       {visitChargeFacts.length > 0 && (
         <div className="provider-pricing-highlight">
-          <span className="pricing-label">Visit Charge</span>
+          <span className="pricing-label">Visit charge</span>
           <FactHistory
             facts={visitChargeFacts}
             timezone={view.task.constraints.timezone}
@@ -183,7 +202,7 @@ export function ProviderCard({
         </div>
       )}
 
-      {reasons && reasons.length > 0 && (
+      {known && reasons && reasons.length > 0 && (
         <div className="reasons-banner">
           {reasons.map((r) => (
             <span key={r} className="reason-item">
@@ -219,6 +238,9 @@ export function ProviderCard({
           })}
         </dl>
       )}
+      <p className="provider-footnote">
+        Parts and labor are quoted after diagnosis.
+      </p>
     </article>
   );
 }

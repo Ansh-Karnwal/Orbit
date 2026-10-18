@@ -166,6 +166,27 @@ def list_task_evidence(task_id: str, user: UserInfo = Depends(current_user)) -> 
     return repo.list_evidence(task_id)
 
 
+@router.get("/tasks/{task_id}/sources/{source_id}", response_model=EvidenceArtifact)
+def get_task_source(task_id: str, source_id: str,
+                    user: UserInfo = Depends(current_user)) -> EvidenceArtifact:
+    """Resolve a fact's artifact or inbound-event reference within this task only."""
+    owned_task(task_id, user)
+    evidence = repo.list_evidence(task_id)
+    direct = next((e for e in evidence if e.id == source_id), None)
+    if direct is not None:
+        return direct
+    inbound = next((e for e in repo.list_inbound(task_id) if e.id == source_id), None)
+    if inbound is not None:
+        match = next((e for e in evidence if e.kind == "message_in"
+                      and e.extracted.get("external_id") == inbound.external_id
+                      and e.extracted.get("provider_id") == inbound.provider_id
+                      and e.source == {"photon": "photon", "fixture": "fixture_messaging",
+                                       "demo": "demo"}[inbound.source]), None)
+        if match is not None:
+            return match
+    raise OrbitError(404, "not_found", "The source message is unavailable for this task.")
+
+
 # ---------------------------------------------------------------- artifacts
 @router.get("/artifacts/{evidence_id}")
 def get_artifact(evidence_id: str, user: UserInfo = Depends(current_user)):

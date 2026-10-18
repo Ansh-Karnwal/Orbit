@@ -83,7 +83,7 @@ Ports: frontend 3000, backend 8000, provider portal 8100. Root `.env` settings d
 5. Approve Bayside's exact $145.00 terms. The mock progresses to illustrative verification and “Handled ✓”.
 6. Reset (**Shift+R**) and set a portal fault before approving Bayside. `mismatch` shows FAIL; `no_confirmation` shows insufficient evidence; `timeout_after_submit` shows reconciliation without duplicate submission.
 
-Backend reset clears shared demo DB/artifacts/portal state and requires `ORBIT_ALLOW_RESET=1`. Mock reset creates a fresh tab-local story. Mock fault outcomes are scripted UI demonstrations, not tests of real adapters or verifier predicates.
+Each new fixture request gets fresh portal availability, so earlier demo bookings never consume its sample slots. Booking checks and lookup remain scoped to the request, and previous outcomes stay in history. Backend reset clears shared demo DB/artifacts/portal state and requires `ORBIT_ALLOW_RESET=1`. Mock reset creates a fresh tab-local story. Mock fault outcomes are scripted UI demonstrations, not tests of real adapters or verifier predicates.
 
 ## Evidence standard
 

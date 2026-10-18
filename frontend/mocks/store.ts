@@ -60,6 +60,8 @@ function extra(id: string, type: string, message: string) {
     at: new Date().toISOString(),
   });
 }
+// Not "orbit:<id>": list() treats every "orbit:" sessionStorage key as a mock task id.
+const USER_KEY = "orbit-user";
 const DEMO_USER: UserInfo = {
   user_id: "demo_user",
   display_name: "Demo user",
@@ -82,7 +84,7 @@ export const mock = {
   },
   me(): UserInfo {
     if (typeof sessionStorage === "undefined") return DEMO_USER;
-    const saved = sessionStorage.getItem("orbit:user");
+    const saved = sessionStorage.getItem(USER_KEY);
     return saved ? (JSON.parse(saved) as UserInfo) : DEMO_USER;
   },
   login(display_name: string): UserInfo {
@@ -93,11 +95,11 @@ export const mock = {
       authenticated: true,
       auth_mode: "demo",
     };
-    sessionStorage.setItem("orbit:user", JSON.stringify(user));
+    sessionStorage.setItem(USER_KEY, JSON.stringify(user));
     return user;
   },
   logout(): UserInfo {
-    sessionStorage.removeItem("orbit:user");
+    sessionStorage.removeItem(USER_KEY);
     return DEMO_USER;
   },
   answer(id: string, body: AnswerIn) {
@@ -115,6 +117,12 @@ export const mock = {
     return v;
   },
   list() {
+    if (typeof sessionStorage !== "undefined") {
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key?.startsWith("orbit:")) run(key.slice(6));
+      }
+    }
     return [...runs.keys()].map((id) => mock.get(id).task);
   },
   create(input: TaskCreate) {
@@ -180,20 +188,14 @@ export const mock = {
     approval.approver = body.approver;
     approval.decided_at = new Date().toISOString();
     if (body.decision === "rejected") {
-      // The scripted story can't re-coordinate; say so instead of faking it.
+      // The scripted story can't re-coordinate (the backend does): it offers the
+      // workspace's revise-or-stop recovery instead of faking another option.
       r.stopped = true;
       v.task.status = "BLOCKED";
       v.task.reason_code = "user_rejected_all";
       v.task.status_reason =
-        "You declined this option. Finding another runs on the backend; the offline story stops here.";
+        "You declined this proposal. Revise it as a new request or stop coordination here.";
       v.current_proposal = null;
-      v.open_question = {
-        question_id: `q_mock_${approval.id}`,
-        text: v.task.status_reason,
-        reason_code: "user_rejected_all",
-        options: [{ id: "stop", label: "Stop here", params: {} }],
-        asked_at: new Date().toISOString(),
-      };
     } else if (r.index === 4) r.index = 5;
     else {
       r.index = 3;
@@ -232,6 +234,15 @@ export const mock = {
   },
   cancel(id: string) {
     const r = run(id);
+    const view = r.snapshots[r.index];
+    if (["COMPLETED", "FAILED", "CANCELLED"].includes(view.task.status))
+      throw new ApiError(409, "This request has already ended.");
+    view.approvals
+      .filter((a) => a.status === "requested")
+      .forEach((a) => {
+        a.status = "invalidated";
+        a.invalidated_reason = "Coordination stopped.";
+      });
     r.stopped = true;
     r.snapshots[r.index].task.status = "CANCELLED";
     notify(id);
