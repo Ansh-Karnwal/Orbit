@@ -1,0 +1,212 @@
+.hero {
+  position: relative;
+  isolation: isolate;
+  min-height: 760px;
+  height: calc(100svh - 116px);
+  max-height: 1040px;
+  overflow: hidden;
+  color: #25291f;
+}
+.copy {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  padding: 80px 20px 140px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.copy h1 {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-weight: 650;
+  font-size: clamp(52px, 7vw, 92px);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: #0f172a;
+  animation: enter 0.95s both;
+}
+.copy h1 em {
+  font-style: normal;
+  font-weight: 650;
+  background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.copy p {
+  font-size: clamp(16px, 1.8vw, 19px);
+  line-height: 1.5;
+  margin: 20px auto 28px;
+  max-width: 520px;
+  color: #64748b;
+  font-weight: 400;
+  animation: enter 0.95s 0.12s both;
+}
+.ctaRow {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+.copy .cta {
+  background: #0f172a;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 14px 28px;
+  font-size: 15px;
+  font-weight: 500;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.2);
+  animation: enter 0.95s 0.22s both;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.copy .cta:hover {
+  background: #1e293b;
+  transform: translateY(-1px);
+}
+.drawing {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  pointer-events: none;
+}
+.thread {
+  stroke: #7b8864;
+  stroke-width: 2;
+  stroke-dasharray: 2200;
+  stroke-dashoffset: 2200;
+  animation: draw 2.5s 0.25s forwards;
+}
+.tail {
+  stroke: #305a42;
+  stroke-width: 2;
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  animation: draw 2.5s 0.4s forwards;
+}
+.orbit {
+  transform-origin: 1235px 349px;
+  animation: spin 24s linear infinite;
+}
+.note {
+  transform-origin: 283px 553px;
+  animation: sway 7s ease-in-out infinite;
+}
+.pause {
+  position: absolute;
+  z-index: 3;
+  left: 30px;
+  bottom: 28px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #25291f40;
+  border-radius: 50%;
+  background: transparent;
+  color: #464b40;
+  cursor: pointer;
+}
+.pause:hover {
+  background: #dfb9ed;
+}
+.scroll {
+  position: absolute;
+  bottom: 34px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: #69715e;
+  white-space: nowrap;
+}
+.scroll span {
+  margin-left: 12px;
+  display: inline-block;
+  animation: nudge 3s infinite;
+}
+.paused * {
+  animation-play-state: paused !important;
+}
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes sway {
+  50% {
+    transform: rotate(5deg) translateY(-8px);
+  }
+}
+@keyframes nudge {
+  50% {
+    transform: translateY(4px);
+  }
+}
+@media (min-width: 1700px) {
+  .copy {
+    padding-top: 145px;
+  }
+}
+@media (max-width: 760px) {
+  .hero {
+    min-height: 700px;
+    height: calc(100svh - 98px);
+  }
+  .copy {
+    padding: 100px 12px 180px;
+  }
+  .copy h1 {
+    font-size: clamp(64px, 12.7vw, 94px);
+  }
+  .copy p {
+    font-size: 15px;
+    margin-top: 28px;
+  }
+  .drawing {
+    width: 150%;
+    max-width: none;
+    left: -25%;
+    opacity: 0.65;
+  }
+  .note {
+    display: none;
+  }
+  .pause {
+    left: 18px;
+    bottom: 22px;
+  }
+  .scroll {
+    bottom: 33px;
+    font-size: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero * {
+    animation: none !important;
+    transition: none !important;
+  }
+  .thread,
+  .tail {
+    stroke-dashoffset: 0;
+  }
+}

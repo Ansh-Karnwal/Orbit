@@ -1,0 +1,21 @@
+{
+  "outcome_text": "Arrange a dishwasher repair visit on Tuesday between 2 and 5 p.m., with a total visit charge of at most $150. Confirm the diagnostic fee and cancellation terms. Ask me before committing to a booking.",
+  "constraints": {
+    "service": "dishwasher_repair",
+    "window_start": "2026-10-20T21:00:00.000Z",
+    "window_end": "2026-10-21T00:00:00.000Z",
+    "timezone": "America/Los_Angeles",
+    "max_visit_charge_cents": 15000,
+    "require_diagnostic_fee_confirmed": true,
+    "require_cancellation_terms": true,
+    "approval_policy": "before_booking"
+  },
+  "providers": [
+    {"id": "provider_a", "name": "Ace Appliance Repair", "channel": "fixture", "handle": "fixture:provider_a", "portal_url": "http://localhost:8100/p/provider_a"},
+    {"id": "provider_b", "name": "Bayside Appliance Service", "channel": "fixture", "handle": "fixture:provider_b", "portal_url": "http://localhost:8100/p/provider_b"}
+  ],
+  "limits": {"max_tool_actions": 40, "max_runtime_s": 1800, "max_llm_calls": 60, "reply_timeout_s": 600},
+  "mode": "fixture",
+  "source": "creao",
+  "creao_ref": "synthetic-example-not-an-executed-run"
+}

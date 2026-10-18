@@ -1,0 +1,339 @@
+/* Modern minimalist polish with clean surfaces and balanced typography */
+.landing-main {
+  background: radial-gradient(circle at 50% 0%, #f1f5f9 0%, #f8fafc 40%, #ffffff 100%);
+  color: #0f172a;
+}
+
+body:has(.landing-main) {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+body:has(.landing-main) .site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(248, 250, 252, 0.85);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+  padding: 16px 24px;
+}
+
+body:has(.landing-main) .header-inner {
+  max-width: 1200px;
+  min-height: 52px;
+  padding: 0 12px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+body:has(.landing-main) .brand {
+  font-weight: 650;
+  font-size: 20px;
+  letter-spacing: -0.03em;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+}
+
+body:has(.landing-main) .brand-period {
+  color: #2563eb;
+}
+
+body:has(.landing-main) .site-header .button {
+  background: #0f172a;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 14px;
+  padding: 8px 16px;
+}
+
+body:has(.landing-main) .site-header .button:hover {
+  background: #1e293b;
+}
+
+/* Intake Section */
+.landing-main .intake-section {
+  max-width: 760px;
+  margin: 20px auto 80px;
+  padding: 40px 20px 0;
+}
+
+.landing-main .intake-heading {
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.landing-main .intake-heading h2 {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: clamp(28px, 3.5vw, 38px);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  color: #0f172a;
+  line-height: 1.15;
+}
+
+.landing-main .intake-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+.landing-main .intake-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 28px;
+  box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.05);
+}
+
+.landing-main .intake-card > .section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.landing-main .intake-card > .section-title h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+/* Inputs & Form */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 450;
+  color: #334155;
+}
+
+.field label {
+  font-weight: 450;
+  color: #334155;
+}
+
+.field textarea,
+.field input,
+.field select {
+  font-size: 14px;
+  font-weight: 400;
+  color: #0f172a;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.field textarea:focus,
+.field input:focus,
+.field select:focus {
+  background: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.input-with-prefix {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-prefix {
+  position: absolute;
+  left: 14px;
+  font-weight: 450;
+  color: #64748b;
+  font-size: 15px;
+}
+
+.input-with-prefix input {
+  padding-left: 28px;
+  width: 100%;
+}
+
+.grid-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+/* Permission guarantee note */
+.permission-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 12px 16px;
+  color: #166534;
+  font-size: 13px;
+  font-weight: 450;
+}
+
+/* Provider pills list */
+.field-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.provider-pill-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.provider-pill-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-weight: 450;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.provider-pill-item .provider-initial {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.provider-mode-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+/* Mode toggle segmented control */
+.mode-row {
+  margin: 6px 0;
+}
+
+.mode-toggle {
+  display: inline-flex;
+  background: #f1f5f9;
+  padding: 3px;
+  border-radius: 8px;
+  gap: 2px;
+}
+
+.mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 450;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.mode-btn input {
+  display: none;
+}
+
+.mode-btn.active {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.mode-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Submit button */
+.submit-btn {
+  width: 100%;
+  padding: 14px 24px;
+  font-size: 15px;
+  font-weight: 550;
+  border-radius: 12px;
+  background: #0f172a;
+  color: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.submit-btn:hover:not(:disabled) {
+  background: #1e293b;
+}
+
+/* Aside CREAO import */
+.aside-import-card {
+  background: transparent !important;
+  border: 1px dashed #cbd5e1 !important;
+  box-shadow: none !important;
+  border-radius: 14px !important;
+}
+
+.aside-import-card summary {
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.aside-import-card summary:hover {
+  color: #0f172a;
+}
+
+.aside-import-body {
+  padding: 0 16px 16px;
+}
+
+/* Footer */
+body footer {
+  border-top: 1px solid #e2e8f0;
+  padding: 28px 20px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+}
+
+.footer-brand {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+@media (max-width: 680px) {
+  .landing-main .intake-card {
+    padding: 18px;
+  }
+  .grid-two {
+    grid-template-columns: 1fr;
+  }
+}
